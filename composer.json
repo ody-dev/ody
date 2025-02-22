@@ -1,0 +1,20 @@
+{
+  "name": "ody/db",
+  "description": "Databse package for ody API framework",
+  "minimum-stability": "dev",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Ilyas Deckers",
+      "email": "deckersilyas@gmail.com"
+    }
+  ],
+  "require": {
+    "illuminate/database": "^11.43"
+  },
+  "autoload": {
+    "psr-4": {
+        "Ody\\DB\\": "src/"
+    }
+  }
+}

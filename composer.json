@@ -1,6 +1,7 @@
 {
   "name": "ody/db",
-  "description": "Databse package for ody API framework",
+  "description": "Database package for ody API framework",
+  "version": "0.0.1",
   "minimum-stability": "dev",
   "license": "MIT",
   "authors": [
@@ -10,6 +11,8 @@
     }
   ],
   "require": {
+    "php": "^8.3",
+    "ext-pdo": "*",
     "illuminate/database": "^11.43",
     "symfony/console": "^5.2.12|^6.0|^7.0",
     "symfony/finder": "^5.0|^6.0|^7.0"

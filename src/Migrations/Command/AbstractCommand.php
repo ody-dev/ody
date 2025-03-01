@@ -129,7 +129,7 @@ abstract class AbstractCommand extends Command
         }
 
         if (!$configFile) {
-            throw new ConfigException('No configuration file exists. Create phoenix.php or phoenix.yml or phoenix.neon or phoenix.json in your project root or specify path to your existing config file with --config option');
+            throw new ConfigException('No configuration file exists.');
         }
         return $this->parseConfig($configFile);
     }
@@ -137,10 +137,8 @@ abstract class AbstractCommand extends Command
     private function getDefaultConfig(): ?string
     {
         $defaultConfigFiles = [
-            'phoenix.php',
-            'phoenix.yml',
-            'phoenix.neon',
-            'phoenix.json',
+            'config/database.php',
+            'config/database.json',
         ];
         foreach ($defaultConfigFiles as $defaultConfigFile) {
             if (file_exists($defaultConfigFile)) {

@@ -19,7 +19,7 @@ final class TemplateManager
     {
         $this->migrationNameCreator = $migrationNameCreator;
         $this->indent = $indent;
-        $templatePath = $templatePath ?: __DIR__ . '/DefaultTemplate.phoenix';
+        $templatePath = $templatePath ?: __DIR__ . '/DefaultTemplate.ody';
         if (!is_file($templatePath)) {
             throw new InvalidArgumentValueException('Template "' . $templatePath . '" not found');
         }

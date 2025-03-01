@@ -2,12 +2,13 @@
 
 namespace Ody\DB\ServiceProviders;
 
-use Ody\Core\ServiceProviders\ServiceProvider;
+use Ody\Core\Foundation\Providers\ServiceProvider;
 
 class DatabaseServiceProvider extends ServiceProvider
 {
     public function register()
     {
+
     }
 
     public function boot()

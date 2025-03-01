@@ -34,13 +34,13 @@ final class CleanupCommand extends AbstractCommand
             $executedMigrations[] = $this->addMigrationToList($migration);
         }
 
-        $filename = __DIR__ . '/../Migration/Init/0_init.php';
+        $filename = __DIR__ . '/../Migration/Init/Init.php';
         require_once $filename;
         $migration = new Init($this->adapter, $this->getConfig()->getLogTableName());
         $migration->rollback();
 
-        $this->writeln(['', '<info>Phoenix cleaned</info>']);
-        $this->outputData['message'] = 'Phoenix cleaned';
+        $this->writeln(['', '<info>Ody cleaned</info>']);
+        $this->outputData['message'] = 'Ody cleaned';
         $executedMigrations[] = $this->addMigrationToList($migration);
         $this->writeln(['']);
 

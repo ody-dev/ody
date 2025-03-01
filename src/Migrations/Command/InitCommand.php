@@ -16,13 +16,13 @@ final class InitCommand extends AbstractCommand
 
     protected function configure(): void
     {
-        $this->setDescription('Initialize phoenix');
+        $this->setDescription('Initialize ody');
         parent::configure();
     }
 
     protected function runCommand(): void
     {
-        $filename = __DIR__ . '/../Migration/Init/0_init.php';
+        $filename = __DIR__ . '/../Migration/Init/Init.php';
         require_once $filename;
         $migration = new Init($this->adapter, $this->getConfig()->getLogTableName());
         $migration->migrate();

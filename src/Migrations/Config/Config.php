@@ -13,12 +13,12 @@ final class Config
      * @var array<string, mixed>
      */
     private array $configuration = [
-        'log_table_name' => 'phoenix_log',
+        'log_table_name' => 'migrations_log',
         'migration_dirs' => [],
         'environments' => [],
         'default_environment' => '',
         'dependencies' => [],
-        'template' => __DIR__ . '/../Templates/DefaultTemplate.phoenix',
+        'template' => __DIR__ . '/../Templates/DefaultTemplate.ody',
         'indent' => '4spaces',
     ];
 

@@ -19,7 +19,7 @@ abstract class AbstractDumpCommand extends AbstractCommand
     protected function configure(): void
     {
         $this
-            ->addOption('ignore-tables', null, InputOption::VALUE_REQUIRED, 'Comma separated list of tables to ignore (Structure and data).', 'phoenix_log')
+            ->addOption('ignore-tables', null, InputOption::VALUE_REQUIRED, 'Comma separated list of tables to ignore (Structure and data).', 'migrations_log')
             ->addOption('indent', 'i', InputOption::VALUE_REQUIRED, 'Indentation. Available values: 2spaces, 3spaces, 4spaces, 5spaces, tab')
             ->addOption('migration', null, InputOption::VALUE_REQUIRED, 'Name of migration', $this->migrationDefaultName())
             ->addOption('dir', null, InputOption::VALUE_REQUIRED, 'Directory to create migration in')

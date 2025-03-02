@@ -20,7 +20,7 @@ jobs:
       mysql:
         image: bitnami/mysql:5.7
         env:
-          MYSQL_DATABASE: phoenix
+          MYSQL_DATABASE: ody
           MYSQL_ROOT_PASSWORD: 123
           MYSQL_CHARACTER_SET: utf8mb4
           MYSQL_COLLATE: utf8mb4_general_ci

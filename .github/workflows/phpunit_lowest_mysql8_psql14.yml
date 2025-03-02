@@ -31,8 +31,13 @@ jobs:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_PASSWORD: 123
-        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
+          POSTGRES_HOST: localhost
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         ports:
           - 5432:5432
 
@@ -55,4 +60,4 @@ jobs:
           ODY_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
           ODY_MYSQL_PASSWORD: 123
           ODY_PGSQL_PORT: ${{ job.services.postgres.ports[5432] }}
-          ODY_PGSQL_PASSWORD: 123
+          ODY_PGSQL_PASSWORD: postgres

@@ -31,8 +31,13 @@ jobs:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_PASSWORD: 123
-        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
+          POSTGRES_HOST: localhost
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
         ports:
           - 5432:5432
 

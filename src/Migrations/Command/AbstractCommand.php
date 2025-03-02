@@ -137,11 +137,11 @@ abstract class AbstractCommand extends Command
     private function getDefaultConfig(): ?string
     {
         $defaultConfigFiles = [
-            'config/database.php',
-            'config/database.json',
+            base_path('/config/database.php')
         ];
         foreach ($defaultConfigFiles as $defaultConfigFile) {
             if (file_exists($defaultConfigFile)) {
+//                var_dump($defaultConfigFile);
                 return $defaultConfigFile;
             }
         }

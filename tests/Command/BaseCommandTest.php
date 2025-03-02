@@ -22,7 +22,7 @@ abstract class BaseCommandTest extends TestCase
     protected function setUp(): void
     {
         // delete root config
-        $rootConfigPath = __DIR__ . '/../../database.php';
+        $rootConfigPath = __DIR__ . '/../../config/database.php';
         if (file_exists($rootConfigPath)) {
             unlink($rootConfigPath);
         }

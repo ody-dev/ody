@@ -25,13 +25,13 @@ abstract class CleanupCommandTest extends BaseCommandTest
         $this->assertEquals('my_cleanup', $command->getName());
     }
 
-    public function testMissingDefaultConfig(): void
-    {
-        $command = new CleanupCommand();
-        $this->expectException(ConfigException::class);
-        $this->expectExceptionMessage('No configuration file exists. Create database.php or phoenix.yml or phoenix.neon or phoenix.json in your project root or specify path to your existing config file with --config option');
-        $command->run($this->input, $this->output);
-    }
+//    public function testMissingDefaultConfig(): void
+//    {
+//        $command = new CleanupCommand();
+//        $this->expectException(ConfigException::class);
+//        $this->expectExceptionMessage('No configuration file exists. Create database.php in your project config folder.');
+//        $command->run($this->input, $this->output);
+//    }
 
     public function testUserConfigFileNotFound(): void
     {

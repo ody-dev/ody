@@ -26,7 +26,7 @@ jobs:
           MYSQL_CHARACTER_SET: utf8mb4
           MYSQL_COLLATE: utf8mb4_general_ci
         ports:
-          - 3306
+          - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
       postgres:
         image: postgres:14
@@ -34,7 +34,7 @@ jobs:
           POSTGRES_PASSWORD: 123
         options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
         ports:
-          - 5432
+          - 5432:5432
 
     steps:
       - name: Checkout code

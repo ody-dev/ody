@@ -48,7 +48,7 @@ jobs:
         run: composer update --no-progress --no-interaction && composer require "symfony/console:<7.0.0"
 
       - name: PHPunit
-        run: vendor/bin/phpunit --coverage-text
+        run: vendor/bin/phpunit
         env:
           PHOENIX_MYSQL_HOST: 127.0.0.1
           PHOENIX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}

@@ -9,14 +9,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class InitCommand extends AbstractCommand
 {
-    public function __construct(string $name = 'init')
+    public function __construct(string $name = 'migrations:init')
     {
         parent::__construct($name);
     }
 
     protected function configure(): void
     {
-        $this->setDescription('Initialize ody');
+        $this->setDescription('Initialize migrations');
         parent::configure();
     }
 
@@ -28,11 +28,11 @@ final class InitCommand extends AbstractCommand
         $migration->migrate();
 
         $executedQueries = $migration->getExecutedQueries();
-        $this->writeln(['', '<info>Phoenix initialized</info>']);
+        $this->writeln(['', '<info>Ody migrations initialized</info>']);
         $this->writeln(['Executed queries:'], OutputInterface::VERBOSITY_DEBUG);
         $this->writeln($executedQueries, OutputInterface::VERBOSITY_DEBUG);
 
-        $this->outputData['message'] = 'Phoenix initialized';
+        $this->outputData['message'] = 'Ody migrations initialized';
 
         if ($this->output->getVerbosity() === OutputInterface::VERBOSITY_DEBUG) {
             $this->outputData['executed_queries'] = $executedQueries;

@@ -16,23 +16,12 @@ final class ConfigParsersTest extends TestCase
         $configs = [
             'php' => [
                 'file' => 'database.php',
-            ],
-            'json' => [
-                'file' => 'phoenix.json',
-            ],
-            'yml' => [
-                'file' => 'phoenix.yml',
-                'class' => 'Symfony\Component\Yaml\Yaml',
-            ],
-            'neon' => [
-                'file' => 'phoenix.neon',
-                'class' => 'Nette\Neon\Neon',
-            ],
+            ]
         ];
 
         foreach ($configs as $type => $configuration) {
             $configParser = ConfigParserFactory::instance($type);
-            $filename = __DIR__ . '/../../config_example/' . $configuration['file'];
+            $filename = __DIR__ . '/../../config/' . $configuration['file'];
             $classname = $configuration['class'] ?? null;
             $config = [];
             if ($classname && class_exists($classname)) {

@@ -13,7 +13,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 final class CreateCommand extends AbstractCommand
 {
-    public function __construct(string $name = 'create')
+    public function __construct(string $name = 'migrations:create')
     {
         parent::__construct($name);
     }

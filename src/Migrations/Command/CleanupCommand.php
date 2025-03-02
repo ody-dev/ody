@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class CleanupCommand extends AbstractCommand
 {
-    public function __construct(string $name = 'cleanup')
+    public function __construct(string $name = 'migrations:cleanup')
     {
         parent::__construct($name);
     }

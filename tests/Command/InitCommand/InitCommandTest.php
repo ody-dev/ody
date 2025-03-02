@@ -15,7 +15,7 @@ abstract class InitCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new InitCommand();
-        $this->assertEquals('init', $command->getName());
+        $this->assertEquals('migrations:init', $command->getName());
     }
 
     public function testCustomName(): void
@@ -44,7 +44,7 @@ abstract class InitCommandTest extends BaseCommandTest
     public function testUserConfigFile(): void
     {
         $command = new InitCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
@@ -52,14 +52,14 @@ abstract class InitCommandTest extends BaseCommandTest
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
         $this->assertCount(5, $messages[0]);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
         $this->assertTrue(count($messages[OutputInterface::VERBOSITY_DEBUG]) > 0);
     }
 
     public function testDefaultConfig(): void
     {
-        $oldPath = __DIR__ . '/../../../testing_migrations/config/database.php';
+        $oldPath = __DIR__ . '/../../testing_migrations/config/database.php';
         $newPath = __DIR__ . '/../../../database.php';
 
         $content = file_get_contents($oldPath);
@@ -74,7 +74,7 @@ abstract class InitCommandTest extends BaseCommandTest
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
         $this->assertCount(5, $messages[0]);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
         $this->assertTrue(count($messages[OutputInterface::VERBOSITY_DEBUG]) > 0);
     }
@@ -89,7 +89,7 @@ abstract class InitCommandTest extends BaseCommandTest
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
         $this->assertCount(5, $messages[0]);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
         $this->assertTrue(count($messages[OutputInterface::VERBOSITY_DEBUG]) > 0);
     }

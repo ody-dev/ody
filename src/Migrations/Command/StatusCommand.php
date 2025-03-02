@@ -8,7 +8,7 @@ use Symfony\Component\Console\Helper\Table;
 
 final class StatusCommand extends AbstractCommand
 {
-    public function __construct(string $name = 'status')
+    public function __construct(string $name = 'migrations:status')
     {
         parent::__construct($name);
     }

@@ -16,7 +16,7 @@ abstract class CleanupCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new CleanupCommand();
-        $this->assertEquals('cleanup', $command->getName());
+        $this->assertEquals('migrations:cleanup', $command->getName());
     }
 
     public function testCustomName(): void
@@ -46,11 +46,11 @@ abstract class CleanupCommandTest extends BaseCommandTest
     {
         $initCommand = new InitCommand();
         $input = $this->createInput();
-        $input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $initCommand->run($input, new Output());
 
         $command = new CleanupCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
@@ -67,11 +67,11 @@ abstract class CleanupCommandTest extends BaseCommandTest
     {
         $initCommand = new InitCommand();
         $input = $this->createInput();
-        $input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $initCommand->run($input, new Output());
 
         $command = new CleanupCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $this->input->setOption('output-format', 'json');
         $command->run($this->input, $this->output);
 
@@ -94,11 +94,11 @@ abstract class CleanupCommandTest extends BaseCommandTest
     {
         $initCommand = new InitCommand();
         $input = $this->createInput();
-        $input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $initCommand->run($input, new Output());
 
         $command = new CleanupCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $this->input->setOption('output-format', 'json');
         $this->output->setVerbosity(OutputInterface::VERBOSITY_DEBUG);
         $command->run($this->input, $this->output);

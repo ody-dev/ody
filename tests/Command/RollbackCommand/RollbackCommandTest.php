@@ -18,7 +18,7 @@ abstract class RollbackCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new RollbackCommand();
-        $this->assertEquals('rollback', $command->getName());
+        $this->assertEquals('migrations:rollback', $command->getName());
     }
 
     public function testCustomName(): void
@@ -47,13 +47,13 @@ abstract class RollbackCommandTest extends BaseCommandTest
     public function testNothingToRollbackWithoutInitializing(): void
     {
         $command = new RollbackCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertEquals('<info>Nothing to rollback</info>' . "\n", $messages[0][6]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
     }

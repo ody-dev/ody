@@ -28,7 +28,7 @@ abstract class BaseCommandTest extends TestCase
         }
 
         // delete additional migration dir
-        $newMigrationDir = __DIR__ . '/../../testing_migrations/new';
+        $newMigrationDir = __DIR__ . '/../testing_migrations/new';
         if (file_exists($newMigrationDir)) {
             $newFiles = Finder::create()->files()->in($newMigrationDir);
             foreach ($newFiles as $newFile) {
@@ -42,7 +42,7 @@ abstract class BaseCommandTest extends TestCase
         $adapter->cleanupDatabase();
 
         $parser = new PhpConfigParser();
-        $this->configuration = $parser->parse(__DIR__ . '/../../testing_migrations/config/database.php');
+        $this->configuration = $parser->parse(__DIR__ . '/../testing_migrations/config/database.php');
 
         $this->input = $this->createInput();
         $this->output = new Output();

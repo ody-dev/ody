@@ -14,7 +14,7 @@ final class MigrateCommand extends AbstractRunCommand
 
     protected string $migrationInfoPrefix = 'Migration';
 
-    public function __construct(string $name = 'migrate')
+    public function __construct(string $name = 'migrations:migrate')
     {
         parent::__construct($name);
     }

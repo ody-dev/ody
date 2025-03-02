@@ -20,7 +20,7 @@ abstract class CreateCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new CreateCommand();
-        $this->assertEquals('create', $command->getName());
+        $this->assertEquals('migrations:create', $command->getName());
     }
 
     public function testCustomName(): void
@@ -61,7 +61,7 @@ abstract class CreateCommandTest extends BaseCommandTest
 
     public function testMoreThanOneMigrationDirsAvailableWithCommandChoice(): void
     {
-        $createMigrationDir = __DIR__ . '/../../../testing_migrations/new';
+        $createMigrationDir = __DIR__ . '/../../testing_migrations/new';
         $this->assertFalse(is_dir($createMigrationDir));
         mkdir($createMigrationDir);
         $this->assertTrue(is_dir($createMigrationDir));
@@ -97,7 +97,7 @@ declare(strict_types=1);', $migrationContent);
 
     public function testCreateMigrationInNewDirectory(): void
     {
-        $createMigrationDir = __DIR__ . '/../../../testing_migrations/new';
+        $createMigrationDir = __DIR__ . '/../../testing_migrations/new';
         $this->assertFalse(is_dir($createMigrationDir));
         mkdir($createMigrationDir);
         $this->assertTrue(is_dir($createMigrationDir));
@@ -151,7 +151,7 @@ declare(strict_types=1);', $migrationContent);
 
     public function testCreateMigrationInNewDirectoryWithTabIndent(): void
     {
-        $createMigrationDir = __DIR__ . '/../../../testing_migrations/new';
+        $createMigrationDir = __DIR__ . '/../../testing_migrations/new';
         $this->assertFalse(is_dir($createMigrationDir));
         mkdir($createMigrationDir);
         $this->assertTrue(is_dir($createMigrationDir));

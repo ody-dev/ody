@@ -14,7 +14,7 @@ final class RollbackCommand extends AbstractRunCommand
 
     protected string $migrationInfoPrefix = 'Rollback for migration';
 
-    public function __construct(string $name = 'rollback')
+    public function __construct(string $name = 'migrations:rollback')
     {
         parent::__construct($name);
     }

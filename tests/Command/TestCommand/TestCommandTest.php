@@ -46,13 +46,13 @@ abstract class TestCommandTest extends BaseCommandTest
     public function testTestWithoutInitializing(): void
     {
         $command = new TestCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertEquals('<comment>Test started...</comment>' . "\n", $messages[0][6]);
         $this->assertEquals('<comment>Test finished successfully</comment>' . "\n", $messages[0][17]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
@@ -61,14 +61,14 @@ abstract class TestCommandTest extends BaseCommandTest
     public function testTestWithoutInitializingWithCleanup(): void
     {
         $command = new TestCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $this->input->setOption('cleanup', true);
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertEquals('<comment>Test started...</comment>' . "\n", $messages[0][6]);
         $this->assertEquals('<comment>Test finished successfully</comment>' . "\n", $messages[0][20]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);

@@ -18,7 +18,7 @@ abstract class MigrateCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new MigrateCommand();
-        $this->assertEquals('migrate', $command->getName());
+        $this->assertEquals('migrations:migrate', $command->getName());
     }
 
     public function testCustomName(): void
@@ -47,13 +47,13 @@ abstract class MigrateCommandTest extends BaseCommandTest
     public function testUserConfigFile(): void
     {
         $command = new MigrateCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
     }
 
@@ -66,7 +66,7 @@ abstract class MigrateCommandTest extends BaseCommandTest
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertArrayHasKey(OutputInterface::VERBOSITY_DEBUG, $messages);
     }
 

@@ -17,7 +17,7 @@ abstract class StatusCommandTest extends BaseCommandTest
     public function testDefaultName(): void
     {
         $command = new StatusCommand();
-        $this->assertEquals('status', $command->getName());
+        $this->assertEquals('migrations:status', $command->getName());
     }
 
     public function testCustomName(): void
@@ -46,13 +46,13 @@ abstract class StatusCommandTest extends BaseCommandTest
     public function testStatusWithoutInitializing(): void
     {
         $command = new StatusCommand();
-        $this->input->setOption('config', __DIR__ . '/../../../testing_migrations/config/database.php');
+        $this->input->setOption('config', __DIR__ . '/../../testing_migrations/config/database.php');
         $command->run($this->input, $this->output);
 
         $messages = $this->output->getMessages();
         $this->assertTrue(is_array($messages));
         $this->assertArrayHasKey(0, $messages);
-        $this->assertEquals('<info>Phoenix initialized</info>' . "\n", $messages[0][1]);
+        $this->assertEquals('<info>Ody migrations initialized</info>' . "\n", $messages[0][1]);
         $this->assertEquals('<comment>Executed migrations</comment>' . "\n", $messages[0][6]);
         $this->assertEquals('<info>No executed migrations</info>' . "\n", $messages[0][7]);
         $this->assertEquals('<comment>Migrations to execute</comment>' . "\n", $messages[0][9]);

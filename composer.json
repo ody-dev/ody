@@ -1,7 +1,6 @@
 {
   "name": "ody/database",
   "description": "Database package for ody API framework",
-  "version": "0.0.1",
   "minimum-stability": "dev",
   "license": "MIT",
   "authors": [

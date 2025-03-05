@@ -14,17 +14,6 @@ use Ody\DB\Migrations\Command\StatusCommand;
 
 class DatabaseServiceProvider extends ServiceProvider
 {
-    public array $commands = [
-        DiffCommand::class,
-        MigrateCommand::class,
-        StatusCommand::class,
-        CleanupCommand::class,
-        DumpCommand::class,
-        CreateCommand::class,
-        RollbackCommand::class,
-        InitCommand::class,
-    ];
-
     public function register()
     {
 

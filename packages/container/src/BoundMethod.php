@@ -31,7 +31,7 @@ class BoundMethod
      */
     public static function call($container, $callback, array $parameters = [], $defaultMethod = null)
     {
-        error_log('just some testing');
+        error_log('just some testingsss');
         if (is_string($callback) && ! $defaultMethod && method_exists($callback, '__invoke')) {
             $defaultMethod = '__invoke';
         }

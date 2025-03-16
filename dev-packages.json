@@ -1,0 +1,69 @@
+{
+  "packages": [
+    {
+      "name": "ody/auth",
+      "path": "../auth",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/container",
+      "path": "../container",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/database",
+      "path": "../database",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/foundation",
+      "path": "../foundation",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/influxdb",
+      "path": "../influxdb",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/logger",
+      "path": "../logger",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/process",
+      "path": "../process",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/scheduler",
+      "path": "../scheduler",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/server",
+      "path": "../server",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/support",
+      "path": "../support",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/swoole",
+      "path": "../swoole",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/task",
+      "path": "../task",
+      "prod-version": ">=0.1.0"
+    },
+    {
+      "name": "ody/websocket",
+      "path": "../websocket",
+      "prod-version": ">=0.1.0"
+    }
+  ]
+}

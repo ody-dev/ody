@@ -1,0 +1,109 @@
+{
+    "name": "ody/ody-repo",
+    "description": "Monorepo",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ilyas Deckers",
+            "email": "ilyas@ody.dev"
+        }
+    ],
+    "require": {
+        "cocur/slugify": "^4.6",
+        "dragonmantank/cron-expression": "^2.2",
+        "ext-pdo": "*",
+        "ext-swoole": "^5.1 || ^6.0",
+        "illuminate/database": "^11.43",
+        "influxdata/influxdb-client-php": "^3.0",
+        "nesbot/carbon": "^3.8",
+        "nikic/fast-route": "^1.3",
+        "nyholm/psr7": "^1.8",
+        "nyholm/psr7-server": "^1.1.0",
+        "php": ">=8.3",
+        "php-http/curl-client": "^2.3",
+        "php-http/guzzle7-adapter": "^1.1",
+        "psr/container": "^1.1.2",
+        "psr/http-message": "^2.0",
+        "psr/http-server-handler": "^1.0.2",
+        "psr/http-server-middleware": "^1.0.2",
+        "psr/log": "^3.0",
+        "psr/simple-cache": "^1.0.1",
+        "symfony/console": "^7.2",
+        "symfony/process": "^7.2",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "require-dev": {
+        "laminas/laminas-diactoros": "^3.5",
+        "mockery/mockery": "^1.4",
+        "phpstan/phpstan": "^1.11",
+        "phpunit/phpunit": "^9.6",
+        "ramsey/uuid": "^3.7|^4.0",
+        "squizlabs/php_codesniffer": "^3.6",
+        "swoole/ide-helper": "^6.0",
+        "symfony/var-dumper": "^7.2",
+        "symplify/monorepo-builder": "^11.2",
+        "vimeo/psalm": "^6.8.8"
+    },
+    "replace": {
+        "ody/container": "self.version",
+        "ody/database": "self.version",
+        "ody/foundation": "self.version",
+        "ody/influxdb": "self.version",
+        "ody/logger": "self.version",
+        "ody/process": "self.version",
+        "ody/scheduler": "self.version",
+        "ody/server": "self.version",
+        "ody/support": "self.version",
+        "ody/swoole": "self.version",
+        "ody/task": "self.version",
+        "ody/websocket": "self.version"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "Ody\\Container\\": "packages/container/src/",
+            "Ody\\DB\\": "packages/database/src/",
+            "Ody\\Foundation\\": "packages/foundation/src/",
+            "Ody\\Futures\\": "packages/swoole/src/Futures",
+            "Ody\\InfluxDB\\": "packages/influxdb/src/",
+            "Ody\\Logger\\": "packages/logger/src/",
+            "Ody\\Process\\": "packages/process/src/",
+            "Ody\\Scheduler\\": "packages/scheduler/src/",
+            "Ody\\Server\\": "packages/server/src/",
+            "Ody\\Support\\": "packages/support/src/",
+            "Ody\\Swoole\\": "packages/swoole/src/",
+            "Ody\\Task\\": "packages/task/src/",
+            "Ody\\Websocket\\": "packages/websocket/src/"
+        },
+        "files": [
+            "packages/foundation/src/Http/functions/create_uploaded_file.php",
+            "packages/foundation/src/Http/functions/normalize_uploaded_files.php",
+            "packages/foundation/src/Http/functions/create_uploaded_file.php",
+            "packages/foundation/src/Http/functions/normalize_uploaded_files.php",
+            "packages/support/src/helpers.php",
+            "packages/swoole/src/Futures/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ody\\Container\\Tests\\": "packages/container/tests/",
+            "Ody\\DB\\Tests\\": "packages/database/tests/",
+            "Ody\\InfluxDB\\Tests\\": "packages/influxdb/tests/",
+            "Ody\\Logger\\Tests\\": "packages/logger/tests/",
+            "Ody\\Server\\Tests\\": "packages/server/tests/",
+            "Ody\\Swoole\\Tests\\": "packages/swoole/tests/",
+            "Ody\\Websocket\\Tests\\": "packages/websocket/tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "extra": {
+        "providers": [
+            "Ody\\Database\\DatabseServiceProvider"
+        ]
+    }
+}

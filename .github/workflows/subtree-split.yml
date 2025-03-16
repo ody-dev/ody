@@ -25,7 +25,6 @@ jobs:
       - name: Split ${{ matrix.package.name }}
         uses: symplify/monorepo-split-github-action@v2.3.0
         with:
-          tag: ${GITHUB_REF#refs/tags/}
           package_directory: ${{ matrix.package.path }}
           repository_organization: ody-dev
           repository_name: ${{ matrix.package.name }}

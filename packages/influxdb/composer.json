@@ -1,0 +1,48 @@
+{
+  "name": "ody/influxdb",
+  "description": "InfluxDB 2.x logging integration for ODY Framework",
+  "type": "library",
+  "license": "MIT",
+  "keywords": ["ody", "logging", "influxdb", "influxdb2", "time-series", "metrics"],
+  "authors": [
+    {
+      "name": "Ilyas Deckers",
+      "email": "ilyas@ody.dev"
+    }
+  ],
+  "require": {
+    "php": ">=8.3",
+    "influxdata/influxdb-client-php": "^3.0",
+    "ody/logger": ">=0.1.0",
+    "psr/log": "^3.0",
+    "php-http/guzzle7-adapter": "^1.1",
+    "php-http/curl-client": "^2.3"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6",
+    "mockery/mockery": "^1.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "Ody\\InfluxDB\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Ody\\InfluxDB\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "check-style": "phpcs",
+    "fix-style": "phpcbf"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

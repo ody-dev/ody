@@ -16,6 +16,17 @@ jobs:
       matrix:
         package:
           - { name: "container", path: "packages/container" }
+          - { name: "database", path: "packages/database" }
+          - { name: "foundation", path: "packages/foundation" }
+          - { name: "influxdb", path: "packages/influxdb" }
+          - { name: "logger", path: "packages/logger" }
+          - { name: "process", path: "packages/process" }
+          - { name: "scheduler", path: "packages/scheduler" }
+          - { name: "server", path: "packages/server" }
+          - { name: "support", path: "packages/support" }
+          - { name: "swoole", path: "packages/swoole" }
+          - { name: "task", path: "packages/task" }
+          - { name: "websocket", path: "packages/websocket" }
 
     steps:
       - uses: actions/checkout@v3

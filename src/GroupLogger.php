@@ -78,28 +78,36 @@ class GroupLogger extends AbstractLogger
         return $this;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     protected function write(string $level, string $message, array $context = []): void
     {
         $errors = [];
 
         foreach ($this->loggers as $index => $logger) {
             try {
-                // Forward the log message to each logger
-                $logger->log($level, $message, $context);
+                // Pass the already formatted message to each logger's write method
+                if ($logger instanceof AbstractLogger) {
+                    // If we have access to the protected write method, use reflection to call it directly
+                    $reflectionMethod = new \ReflectionMethod(get_class($logger), 'write');
+                    $reflectionMethod->setAccessible(true);
+                    $reflectionMethod->invoke($logger, $level, $message, $context);
+                } else {
+                    // For other loggers, we still need to use log() but we should pass the raw message
+                    // and let it handle the formatting
+                    if (isset($context['_raw_message'])) {
+                        $rawMessage = $context['_raw_message'];
+                        unset($context['_raw_message']);
+                        $logger->log($level, $rawMessage, $context);
+                    } else {
+                        $logger->log($level, $message, $context);
+                    }
+                }
             } catch (\Throwable $e) {
-                // Collect the error but don't interrupt other loggers
                 $loggerClass = get_class($logger);
                 $errors[] = "Logger #{$index} ({$loggerClass}) error: " . $e->getMessage();
-
-                // Output to error_log as a fallback
                 error_log("GroupLogger error with {$loggerClass}: " . $e->getMessage());
             }
         }
 
-        // If we had errors, add them to the context for the next logger
         if (!empty($errors)) {
             $context['group_logger_errors'] = $errors;
         }

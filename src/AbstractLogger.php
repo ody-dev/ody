@@ -114,13 +114,25 @@ abstract class AbstractLogger extends \Psr\Log\AbstractLogger implements LoggerI
      */
     public function log($level, $message, array $context = []): void
     {
-
         if (!$this->isLevelAllowed($level)) {
             return;
         }
 
-        $formattedMessage = $this->formatter->format($level, $message, $context);
-        $this->write($level, $formattedMessage, $context);
+        // Check if message is already formatted (contains timestamp and level)
+        $isAlreadyFormatted = false;
+        if (is_string($message) &&
+            preg_match('/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \[[A-Z]+\]/', $message)) {
+            $isAlreadyFormatted = true;
+        }
+
+        if ($isAlreadyFormatted) {
+            // If already formatted, write directly
+            $this->write($level, $message, $context);
+        } else {
+            // If not formatted, format and then write
+            $formattedMessage = $this->formatter->format($level, $message, $context);
+            $this->write($level, $formattedMessage, $context);
+        }
     }
 
     /**

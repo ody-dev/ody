@@ -26,5 +26,6 @@
     "psr-4": {
       "Ody\\Container\\Tests\\": "tests/"
     }
-  }
+  },
+  "version": "0.1.1"
 }

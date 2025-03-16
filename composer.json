@@ -1,0 +1,22 @@
+{
+  "name": "ody/scheduler",
+  "description": "Scheduler component for ODY framework",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Ilyas Deckers",
+      "email": "ilyas@ody.dev"
+    }
+  ],
+  "require": {
+    "ody/swoole": ">=0.1.0",
+    "ody/server": ">=0.1.0",
+    "dragonmantank/cron-expression": "^2.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Ody\\Scheduler\\": "src/"
+    }
+  }
+}

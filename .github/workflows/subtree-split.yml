@@ -3,9 +3,11 @@ name: Subtree Split
 on:
   push:
     branches:
-      - main
       - master
       - develop
+
+env:
+  GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
 jobs:
   split:

@@ -15,6 +15,7 @@ jobs:
     strategy:
       matrix:
         package:
+          - { name: "auth", path: "packages/auth" }
           - { name: "container", path: "packages/container" }
           - { name: "database", path: "packages/database" }
           - { name: "foundation", path: "packages/foundation" }

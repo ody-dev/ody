@@ -1,4 +1,8 @@
 # ody-database
+
+⚠️ **IMPORTANT**: This repository is automatically generated from the [ody repo](https://github.com/ody-dev/ody) and is
+read-only.
+
 This is a work in progress, the connection pool not stable at all! Highly experimental!
 
 This package implements a custom database connection class that overrides the default Connection class

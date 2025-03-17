@@ -2,11 +2,13 @@
 
 namespace Ody\Auth\Providers;
 
-use Ody\Auth\AuthManager;
-use Ody\Auth\Guard;
-use Ody\Auth\TokenGuard;
-use Ody\Auth\UserProvider;
+use Ody\Auth\Middleware\AttachUserToRequest;
+use Ody\Auth\Middleware\Authenticate;
+use Ody\Auth\Middleware\CheckAbilities;
+use Ody\Auth\Middleware\CheckForAnyAbility;
+use Ody\Foundation\Middleware\MiddlewareRegistry;
 use Ody\Foundation\Providers\ServiceProvider;
+use Psr\Log\LoggerInterface;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -17,23 +19,48 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->container->singleton('auth', function ($container) {
-            return new AuthManager($container);
+        // Get the logger for debugging
+        $logger = null;
+        try {
+            $logger = $this->container->has(LoggerInterface::class)
+                ? $this->container->make(LoggerInterface::class)
+                : null;
+        } catch (\Throwable $e) {
+            // Fallback if we can't get logger
+        }
+
+        // Register a simple version of auth middleware that doesn't depend on AuthManager
+        $this->singleton(Authenticate::class, function ($container) use ($logger) {
+            // Create authenticate middleware with minimal dependencies
+            return new Authenticate(null, $logger, 'sanctum');
         });
 
-        $this->container->singleton('auth.driver', function ($container) {
-            return $container->make('auth')->guard();
+        // Register a simple version of the attach user middleware
+        $this->singleton(AttachUserToRequest::class, function ($container) use ($logger) {
+            // Create middleware with minimal dependencies
+            return new AttachUserToRequest(null, $logger);
         });
 
-        $this->container->singleton('auth.user.provider', function ($container) {
-            $config = $container->make('config');
-            $provider = $config->get('auth.providers.users', [
-                'driver' => 'database',
-                'model' => '\\App\\Models\\User',
-            ]);
-
-            return new UserProvider($provider['model']);
+        // Register ability checking middleware
+        $this->singleton(CheckAbilities::class, function ($container) use ($logger) {
+            return new CheckAbilities([], $logger);
         });
+
+        $this->singleton(CheckForAnyAbility::class, function ($container) use ($logger) {
+            return new CheckForAnyAbility([], $logger);
+        });
+
+        // Create debug middleware
+        if (class_exists('\Ody\Debug\Middleware\DebugMiddleware')) {
+            $this->singleton(\Ody\Debug\Middleware\DebugMiddleware::class, function ($container) use ($logger) {
+                return new \Ody\Debug\Middleware\DebugMiddleware('main-debug', $logger);
+            });
+        }
+
+        // Log successful registration
+        if ($logger) {
+            $logger->info("Auth service provider registered middleware successfully");
+        }
     }
 
     /**
@@ -43,32 +70,45 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register token guard
-        $this->container->make('auth')->extend('token', function ($app, $name, array $config) {
-            $guard = new TokenGuard(
-                $this->container->make('auth.user.provider'),
-                $this->container->make('request'),
-                $config['input_key'] ?? 'api_token',
-                $config['storage_key'] ?? 'api_token',
-                $config['hash'] ?? false
-            );
+        // Get the middleware registry
+        $middlewareRegistry = $this->container->make(MiddlewareRegistry::class);
+        $logger = $this->container->make(LoggerInterface::class);
 
-            $app->refresh('request', $guard, 'setRequest');
+        // Ensure middleware is properly registered
+        if (!$middlewareRegistry->has('auth')) {
+            $logger->info("Registering auth middleware alias");
+            $middlewareRegistry->add('auth', Authenticate::class);
+        }
 
-            return $guard;
-        });
+        // Register the other auth middleware if needed
+        if (!$middlewareRegistry->has('ability')) {
+            $middlewareRegistry->add('ability', CheckForAnyAbility::class);
+        }
 
-        // Register sanctum-like API guard
-        $this->container->make('auth')->extend('sanctum', function ($app, $name, array $config) {
-            $guard = new Guard(
-                $this->container->make('auth'),
-                $config['expiration'] ?? null,
-                $config['provider'] ?? null
-            );
+        if (!$middlewareRegistry->has('abilities')) {
+            $middlewareRegistry->add('abilities', CheckAbilities::class);
+        }
 
-            $app->refresh('request', $guard, 'setRequest');
+        // Add auth middleware to specific routes via the registry
+        try {
+            $logger->info("Registering auth middleware with the router");
 
-            return $guard;
-        });
+            // Create an instance of the Authenticate middleware
+            $auth = $this->container->make(Authenticate::class);
+
+            // Register it directly with the registry for the 'auth' key
+            $middlewareRegistry->add('auth', $auth);
+
+            // Also add it as a pattern for any route with /users path
+            $middlewareRegistry->addToPattern('*GET:/users*', $auth);
+
+            $logger->info("Authentication middleware registered successfully");
+        } catch (\Throwable $e) {
+            $logger->error("Failed to register authentication middleware: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        $logger->info("Auth service provider booted successfully");
     }
 }

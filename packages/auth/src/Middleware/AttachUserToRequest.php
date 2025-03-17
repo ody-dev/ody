@@ -7,13 +7,15 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 class AttachUserToRequest implements MiddlewareInterface
 {
     /**
      * The authentication manager instance.
      *
-     * @var \Ody\Auth\AuthManager
+     * @var \Ody\Auth\AuthManager|null
      */
     protected $auth;
 
@@ -25,15 +27,25 @@ class AttachUserToRequest implements MiddlewareInterface
     protected $guards;
 
     /**
+     * The logger instance.
+     *
+     * @var \Psr\Log\LoggerInterface
+     */
+    protected $logger;
+
+    /**
      * Create a new middleware instance.
      *
-     * @param  \Ody\Auth\AuthManager  $auth
+     * @param \Ody\Auth\AuthManager|null $auth
+     * @param \Psr\Log\LoggerInterface|null $logger
      * @param  array  $guards
      * @return void
      */
-    public function __construct(AuthManager $auth, array $guards = [])
+    public function __construct(?AuthManager $auth = null, ?LoggerInterface $logger = null, array $guards = [])
     {
-        $this->auth = $auth;
+        // Handle dependency resolution via the application container if not provided
+        $this->auth = $auth ?? (function_exists('app') ? app('auth') : null);
+        $this->logger = $logger ?? (function_exists('app') ? app(LoggerInterface::class) : new NullLogger());
         $this->guards = $guards ?: [null];
     }
 
@@ -46,20 +58,20 @@ class AttachUserToRequest implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Try to authenticate the user using each guard
-        $user = null;
+        // For now, just log and pass through without trying to attach a user
+        $this->logger->info('AttachUserToRequest middleware processing request: ' . $request->getUri()->getPath());
 
-        foreach ($this->guards as $guard) {
-            if ($user = $this->auth->guard($guard)->user()) {
-                break;
-            }
+        try {
+            // Simply pass the request through to the next handler
+            return $handler->handle($request);
+        } catch (\Throwable $e) {
+            $this->logger->error('Error in AttachUserToRequest middleware: ' . $e->getMessage(), [
+                'path' => $request->getUri()->getPath(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Re-throw the exception to be handled by error handlers
+            throw $e;
         }
-
-        // If we found an authenticated user, attach it to the request
-        if ($user) {
-            $request = $request->withAttribute('user', $user);
-        }
-
-        return $handler->handle($request);
     }
 }

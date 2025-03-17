@@ -1,3 +1,4 @@
 .idea
 composer.lock.json
 vendor
+.phpunit.result.cache

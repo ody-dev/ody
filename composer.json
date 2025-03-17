@@ -42,7 +42,8 @@
         "swoole/ide-helper": "^6.0",
         "symfony/var-dumper": "^7.2",
         "symplify/monorepo-builder": "^11.2",
-        "vimeo/psalm": "^6.8.8"
+        "vimeo/psalm": "^6.8.8",
+        "mikey179/vfsstream": "^1.6"
     },
     "replace": {
         "ody/container": "self.version",

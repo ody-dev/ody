@@ -45,7 +45,7 @@ class Authenticate implements MiddlewareInterface
     public function __construct(?AuthManager $auth = null, ?LoggerInterface $logger = null, ?string $defaultGuard = null)
     {
         // Store the provided dependencies
-        $this->auth = $auth;
+        $this->auth = app('auth');
         $this->logger = $logger ?? new NullLogger();
         $this->defaultGuard = $defaultGuard;
 
@@ -68,10 +68,10 @@ class Authenticate implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         // Log that we've entered the authenticate middleware
-        $this->logger->info('Authenticate middleware triggered');
+        logger()->debug('Authenticate middleware triggered');
 
         // Dump request information for debugging
-        $this->logger->debug('Request details', [
+        logger()->debug('Request details', [
             'path' => $request->getUri()->getPath(),
             'method' => $request->getMethod(),
             'attributes' => $request->getAttributes(),
@@ -80,7 +80,7 @@ class Authenticate implements MiddlewareInterface
 
         // Handle case where auth manager wasn't injected and couldn't be resolved
         if (!$this->auth) {
-            $this->logger->error('Authenticate: AuthManager not available');
+            logger()->error('Authenticate: AuthManager not available');
 
             // Return unauthorized response since we can't authenticate
             return $this->createUnauthorizedResponse();
@@ -97,7 +97,7 @@ class Authenticate implements MiddlewareInterface
         // Use whatever guard(s) we have
         $guards = $guard ? (array)$guard : ['sanctum', 'token', 'web']; // Try all guards by default
 
-        $this->logger->debug('Auth middleware using guards', ['guards' => $guards]);
+        logger()->debug('Auth middleware using guards', ['guards' => $guards]);
 
         // Authenticate with any of the guards
         foreach ($guards as $guard) {
@@ -107,7 +107,7 @@ class Authenticate implements MiddlewareInterface
                     $user = $this->auth->guard($guard)->user();
                     $request = $request->withAttribute('user', $user);
 
-                    $this->logger->debug('User authenticated', [
+                    logger()->debug('User authenticated', [
                         'guard' => $guard,
                         'user_id' => $user->getAuthIdentifier()
                     ]);
@@ -116,13 +116,13 @@ class Authenticate implements MiddlewareInterface
                     return $handler->handle($request);
                 }
             } catch (\Throwable $e) {
-                $this->logger->warning("Error checking guard {$guard}: " . $e->getMessage());
+                logger()->warning("Error checking guard {$guard}: " . $e->getMessage());
                 continue;
             }
         }
 
         // If we reach here, no guard authenticated the user
-        $this->logger->warning('Authentication failed', ['guards' => $guards]);
+        logger()->warning('Authentication failed', ['guards' => $guards]);
 
         // Create and return an unauthorized response
         return $this->createUnauthorizedResponse();

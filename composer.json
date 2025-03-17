@@ -33,7 +33,9 @@
         "vlucas/phpdotenv": "^5.6"
     },
     "require-dev": {
+        "icanhazstring/composer-unused": "^0.7.12",
         "laminas/laminas-diactoros": "^3.5",
+        "mikey179/vfsstream": "^1.6",
         "mockery/mockery": "^1.4",
         "phpstan/phpstan": "^1.11",
         "phpunit/phpunit": "^9.6",
@@ -42,10 +44,10 @@
         "swoole/ide-helper": "^6.0",
         "symfony/var-dumper": "^7.2",
         "symplify/monorepo-builder": "^11.2",
-        "vimeo/psalm": "^6.8.8",
-        "mikey179/vfsstream": "^1.6"
+        "vimeo/psalm": "^6.8.8"
     },
     "replace": {
+        "ody/auth": "self.version",
         "ody/container": "self.version",
         "ody/database": "self.version",
         "ody/foundation": "self.version",
@@ -63,6 +65,7 @@
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
+            "Ody\\Auth\\": "packages/auth/src/",
             "Ody\\Container\\": "packages/container/src/",
             "Ody\\DB\\": "packages/database/src/",
             "Ody\\Foundation\\": "packages/foundation/src/",
@@ -80,14 +83,13 @@
         "files": [
             "packages/foundation/src/Http/functions/create_uploaded_file.php",
             "packages/foundation/src/Http/functions/normalize_uploaded_files.php",
-            "packages/foundation/src/Http/functions/create_uploaded_file.php",
-            "packages/foundation/src/Http/functions/normalize_uploaded_files.php",
             "packages/support/src/helpers.php",
             "packages/swoole/src/Futures/helpers.php"
         ]
     },
     "autoload-dev": {
         "psr-4": {
+            "Ody\\Auth\\Tests\\": "packages/auth/tests/",
             "Ody\\Container\\Tests\\": "packages/container/tests/",
             "Ody\\DB\\Tests\\": "packages/database/tests/",
             "Ody\\InfluxDB\\Tests\\": "packages/influxdb/tests/",

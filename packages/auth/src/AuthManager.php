@@ -30,7 +30,7 @@ class AuthManager
         }
 
         // Get tokens
-        $tokens = $this->provider->refreshToken($user['id']);
+        $tokens = $this->provider->generateTokens($user);
 
         if (!$tokens) {
             return false;

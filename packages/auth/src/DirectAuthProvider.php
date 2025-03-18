@@ -26,9 +26,10 @@ class DirectAuthProvider implements AuthProviderInterface
     public function authenticate(string $username, string $password)
     {
         // Find user in repository
-        $user = $this->userRepository->findByUsername($username);
+        $user = $this->userRepository->findByEmail($username);
+        $passwordString = $this->userRepository->getAuthPassword($user['id']);
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        if (!$user || !password_verify($password, $passwordString)) {
             return false;
         }
 
@@ -67,27 +68,23 @@ class DirectAuthProvider implements AuthProviderInterface
 
     public function refreshToken(string $refreshToken)
     {
-        try {
-            $decoded = JWT::decode(
-                $refreshToken,
-                new \Firebase\JWT\Key($this->jwtKey, 'HS256')
-            );
+        $decoded = JWT::decode(
+            $refreshToken,
+            new \Firebase\JWT\Key($this->jwtKey, 'HS256')
+        );
 
-            // Verify this is a refresh token and not expired
-            if (!isset($decoded->type) || $decoded->type !== 'refresh' || $decoded->exp < time()) {
-                return false;
-            }
-
-            $user = $this->getUser($decoded->sub);
-
-            if (!$user) {
-                return false;
-            }
-
-            return $this->generateTokens($user);
-        } catch (\Exception $e) {
+        // Verify this is a refresh token and not expired
+        if (!isset($decoded->type) || $decoded->type !== 'refresh' || $decoded->exp < time()) {
             return false;
         }
+
+        $user = $this->getUser($decoded->sub);
+
+        if (!$user) {
+            return false;
+        }
+
+        return $this->generateTokens($user);
     }
 
     public function getUser($id)
@@ -95,7 +92,7 @@ class DirectAuthProvider implements AuthProviderInterface
         return $this->userRepository->findById($id);
     }
 
-    protected function generateTokens(array $user)
+    public function generateTokens(array $user): array
     {
         $now = time();
 
@@ -106,8 +103,7 @@ class DirectAuthProvider implements AuthProviderInterface
             'sub' => $user['id'],
             'iat' => $now,
             'exp' => $now + $this->tokenExpiry,
-            'username' => $user['username'],
-            'email' => $user['email'] ?? null,
+            'email' => $user['email'],
             'roles' => $user['roles'] ?? []
         ];
 

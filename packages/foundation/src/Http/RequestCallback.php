@@ -28,11 +28,12 @@ final class RequestCallback
             // Directly handle the request without reinitializing
             $psrResponse = $this->handler->handle($serverRequest);
 
-            // Log the response
-            error_log("RequestCallback: Got PSR-7 response with status " . $psrResponse->getStatusCode());
-
             // Convert PSR-7 response to Swoole response
             $this->emit($psrResponse, $response);
+
+            if ($this->handler instanceof Application) {
+                $this->handler->getMiddlewareManager()->terminate($serverRequest, $psrResponse);
+            }
         } catch (\Throwable $e) {
             // Log any exceptions
             error_log("RequestCallback Exception: " . $e->getMessage());
@@ -45,6 +46,11 @@ final class RequestCallback
                 'error' => 'Internal Server Error',
                 'message' => env('APP_DEBUG', false) ? $e->getMessage() : 'Server Error'
             ]));
+        } finally {
+            // ensure middleware is terminated
+            if (isset($psrRequest) && isset($psrResponse)) {
+                $this->handler->getMiddlewareManager()->terminate($psrRequest, $psrResponse);
+            }
         }
     }
 
@@ -68,7 +74,6 @@ final class RequestCallback
         // Debug the path being processed
         $path = $server['request_uri'] ?? '/';
         $method = $server['request_method'] ?? 'GET';
-        error_log("RequestCallback: Converting Swoole request to PSR-7: {$method} {$path}");
 
         // Create the request body stream from rawContent
         $rawBody = $swooleRequest->rawContent();
@@ -116,13 +121,6 @@ final class RequestCallback
                 error_log("RequestCallback: Using multipart form data from swoole request");
             }
         }
-
-        // Log the created PSR-7 request for debugging
-        error_log("RequestCallback: Created PSR-7 request: " .
-            $serverRequest->getMethod() . ' ' .
-            $serverRequest->getUri()->getPath() .
-            (empty($parsedBody) ? ' (no parsed body)' : ' (with parsed body)')
-        );
 
         return $serverRequest;
     }

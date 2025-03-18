@@ -10,10 +10,12 @@
 namespace Ody\Foundation;
 
 use Ody\Container\Container;
-use Ody\Foundation\Middleware\MiddlewarePipeline;
+use Ody\Foundation\Middleware\MiddlewareDispatcher;
 use Ody\Foundation\Middleware\MiddlewareRegistry;
+use Ody\Foundation\Middleware\TerminatingMiddlewareInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -42,6 +44,11 @@ class MiddlewareManager
     protected MiddlewareRegistry $registry;
 
     /**
+     * @var array Middleware instances that implement TerminatingMiddlewareInterface
+     */
+    protected array $terminatingMiddleware = [];
+
+    /**
      * Constructor
      *
      * @param Container $container
@@ -57,12 +64,16 @@ class MiddlewareManager
         $this->container = $container;
         $this->logger = $logger ?? new NullLogger();
 
-        // Create the middleware registry
-        $this->registry = new Middleware\MiddlewareRegistry(
-            $container,
-            $logger,
-            $collectStats
-        );
+        // Use the registry from the container if available, otherwise create a new one
+        if ($container->has(MiddlewareRegistry::class)) {
+            $this->registry = $container->make(MiddlewareRegistry::class);
+        } else {
+            $this->registry = new Middleware\MiddlewareRegistry(
+                $container,
+                $logger,
+                $collectStats
+            );
+        }
     }
 
     /**
@@ -84,10 +95,10 @@ class MiddlewareManager
         $this->logger->debug("Processing request through middleware: {$method} {$path}");
 
         // Build the middleware pipeline for this route
-        $pipeline = $this->buildPipeline($method, $path, $finalHandler);
+        $dispatcher = $this->createDispatcher($method, $path, $finalHandler);
 
         // Process the request through the pipeline
-        return $pipeline->handle($request);
+        return $dispatcher->handle($request);
     }
 
     /**
@@ -96,12 +107,19 @@ class MiddlewareManager
      * @param string $method HTTP method
      * @param string $path Route path
      * @param callable|RequestHandlerInterface $finalHandler
-     * @return MiddlewarePipeline
+     * @return MiddlewareDispatcher
      */
-    public function buildPipeline(string $method, string $path, $finalHandler): MiddlewarePipeline
+    public function createDispatcher(
+        string $method,
+        string $path,
+        callable|RequestHandlerInterface $finalHandler
+    ): MiddlewareDispatcher
     {
         // Get middleware for this route
         $middlewareList = $this->registry->buildPipeline($method, $path);
+
+        // Track terminating middleware for this request
+        $this->collectTerminatingMiddleware($middlewareList);
 
         $this->logger->debug("Built middleware pipeline", [
             'count' => count($middlewareList),
@@ -109,13 +127,88 @@ class MiddlewareManager
             'path' => $path
         ]);
 
-        // Create and return the pipeline
-        return new MiddlewarePipeline(
-            $this->registry,
-            $middlewareList,
+        // Create the dispatcher
+        $dispatcher = new MiddlewareDispatcher(
+            $this->container,
             $finalHandler,
             $this->logger
         );
+
+        // Add all middleware to the dispatcher
+        $dispatcher->addMultiple($middlewareList);
+
+        return $dispatcher;
+    }
+
+    /**
+     * Collect middleware instances that implement TerminatingMiddlewareInterface
+     *
+     * @param array $middlewareList
+     * @return void
+     */
+    protected function collectTerminatingMiddleware(array $middlewareList): void
+    {
+        foreach ($middlewareList as $middleware) {
+            try {
+                // First, try to get a resolved instance
+                $instance = null;
+
+                // If it's already a usable middleware instance, use it directly
+                if ($middleware instanceof MiddlewareInterface) {
+                    $instance = $middleware;
+                } else {
+                    // Otherwise, resolve it from container or instantiate it
+                    if (is_string($middleware)) {
+                        // Check if it's a named middleware first
+                        $namedMiddleware = $this->registry->getNamedMiddleware();
+                        if (isset($namedMiddleware[$middleware])) {
+                            $middleware = $namedMiddleware[$middleware];
+                        }
+
+                        // Resolve from container
+                        if ($this->container->has($middleware)) {
+                            $instance = $this->container->make($middleware);
+                        } else if (class_exists($middleware)) {
+                            $instance = new $middleware();
+                        }
+                    }
+                }
+
+                if ($instance instanceof TerminatingMiddlewareInterface) {
+                    $this->terminatingMiddleware[] = $instance;
+                }
+            } catch (\Throwable $e) {
+                $this->logger->warning("Failed to resolve terminating middleware", [
+                    'middleware' => is_string($middleware) ? $middleware : gettype($middleware),
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Run terminating middleware after the response has been sent
+     *
+     * @param ServerRequestInterface $request
+     * @param ResponseInterface $response
+     * @return void
+     */
+    public function terminate(ServerRequestInterface $request, ResponseInterface $response): void
+    {
+        foreach ($this->terminatingMiddleware as $middleware) {
+            try {
+                $middleware->terminate($request, $response);
+            } catch (\Throwable $e) {
+                $this->logger->error("Error in terminating middleware", [
+                    'middleware' => get_class($middleware),
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+        }
+
+        // Clear terminating middleware for this request
+        $this->terminatingMiddleware = [];
     }
 
     /**
@@ -166,6 +259,7 @@ class MiddlewareManager
     public function registerNamedMiddleware(array $namedMiddleware): self
     {
         $this->registry->registerNamedMiddleware($namedMiddleware);
+
         return $this;
     }
 

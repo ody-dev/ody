@@ -22,7 +22,6 @@ class AuthMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        logger()->info('test');
         // Extract token from Authorization header
         $authHeader = $request->getHeaderLine('Authorization');
 

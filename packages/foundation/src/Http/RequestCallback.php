@@ -46,6 +46,11 @@ final class RequestCallback
                 'error' => 'Internal Server Error',
                 'message' => env('APP_DEBUG', false) ? $e->getMessage() : 'Server Error'
             ]));
+        } finally {
+            // ensure middleware is terminated
+            if (isset($psrRequest) && isset($psrResponse)) {
+                $this->handler->getMiddlewareManager()->terminate($psrRequest, $psrResponse);
+            }
         }
     }
 

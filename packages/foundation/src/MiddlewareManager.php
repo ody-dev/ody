@@ -152,8 +152,9 @@ class MiddlewareManager
                     // Otherwise, resolve it from container or instantiate it
                     if (is_string($middleware)) {
                         // Check if it's a named middleware first
-                        if (isset($this->namedMiddleware[$middleware])) {
-                            $middleware = $this->namedMiddleware[$middleware];
+                        $namedMiddleware = $this->registry->getNamedMiddleware();
+                        if (isset($namedMiddleware[$middleware])) {
+                            $middleware = $namedMiddleware[$middleware];
                         }
 
                         // Resolve from container
@@ -250,6 +251,7 @@ class MiddlewareManager
     public function registerNamedMiddleware(array $namedMiddleware): self
     {
         $this->registry->registerNamedMiddleware($namedMiddleware);
+
         return $this;
     }
 

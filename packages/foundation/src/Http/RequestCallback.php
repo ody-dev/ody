@@ -69,7 +69,6 @@ final class RequestCallback
         // Debug the path being processed
         $path = $server['request_uri'] ?? '/';
         $method = $server['request_method'] ?? 'GET';
-        error_log("RequestCallback: Converting Swoole request to PSR-7: {$method} {$path}");
 
         // Create the request body stream from rawContent
         $rawBody = $swooleRequest->rawContent();
@@ -117,13 +116,6 @@ final class RequestCallback
                 error_log("RequestCallback: Using multipart form data from swoole request");
             }
         }
-
-        // Log the created PSR-7 request for debugging
-        error_log("RequestCallback: Created PSR-7 request: " .
-            $serverRequest->getMethod() . ' ' .
-            $serverRequest->getUri()->getPath() .
-            (empty($parsedBody) ? ' (no parsed body)' : ' (with parsed body)')
-        );
 
         return $serverRequest;
     }

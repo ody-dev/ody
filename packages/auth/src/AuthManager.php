@@ -1,196 +1,85 @@
 <?php
 
 namespace Ody\Auth;
-
-use Ody\Config\Config;
-use Ody\Container\Container;
-use Ody\Support\Manager;
-
-class AuthManager extends Manager
+/**
+ * Auth Manager
+ * Main interface for authentication in your framework
+ */
+class AuthManager
 {
-    /**
-     * The registered custom driver creators.
-     *
-     * @var array
-     */
-    protected $customCreators = [];
+    protected $provider;
 
-    /**
-     * The registered custom driver extensions.
-     *
-     * @var array
-     */
-    protected $extensions = [];
-
-    /**
-     * Create a new manager instance.
-     *
-     * @param  Container  $container
-     * @return void
-     */
-    public function __construct(Container $container)
+    public function __construct(AuthProviderInterface $provider)
     {
-        parent::__construct($container);
-        $this->config = config();
+        $this->provider = $provider;
     }
 
     /**
-     * Create a new driver instance.
+     * Authenticate a user with credentials
      *
-     * @param  string  $driver
-     * @return mixed
+     * @param string $username Username or email
+     * @param string $password Password
+     * @return array|false User data with tokens or false
      */
-    protected function createDriver($driver)
+    public function login(string $username, string $password)
     {
-        // First, we will check if an extension has been registered for this driver
-        if (isset($this->extensions[$driver])) {
-            return $this->callCustomCreator($driver);
+        $user = $this->provider->authenticate($username, $password);
+
+        if (!$user) {
+            return false;
         }
 
-        $method = 'create'.ucfirst($driver).'Driver';
+        // Get tokens
+        $tokens = $this->provider->refreshToken($user['id']);
 
-        if (method_exists($this, $method)) {
-            return $this->$method();
+        if (!$tokens) {
+            return false;
         }
 
-        throw new \InvalidArgumentException("Auth driver [{$driver}] not supported.");
+        return array_merge($user, $tokens);
     }
 
     /**
-     * Call a custom driver creator.
+     * Validate a token and get user data
      *
-     * @param  string  $driver
-     * @return mixed
+     * @param string $token JWT token
+     * @return array|false User data or false
      */
-    protected function callCustomCreator($driver)
+    public function validateToken(string $token)
     {
-        return $this->extensions[$driver]($this->container, $driver, $this->getConfig($driver));
+        return $this->provider->validateToken($token);
     }
 
     /**
-     * Get the default authentication driver name.
+     * Refresh a token
      *
-     * @return string
+     * @param string $refreshToken Refresh token
+     * @return array|false New token pair or false
      */
-    public function getDefaultDriver()
+    public function refreshToken(string $refreshToken)
     {
-        return $this->config->get('auth.defaults.guard', 'web');
+        return $this->provider->refreshToken($refreshToken);
     }
 
     /**
-     * Set the default authentication driver name.
+     * Logout a user by revoking their token
      *
-     * @param  string  $name
-     * @return void
+     * @param string $token JWT token
+     * @return bool Success status
      */
-    public function setDefaultDriver($name)
+    public function logout(string $token)
     {
-        $this->config->set('auth.defaults.guard', $name);
+        return $this->provider->revokeToken($token);
     }
 
     /**
-     * Register a new callback based driver resolver.
+     * Get user data by ID
      *
-     * @param  string  $driver
-     * @param  callable  $callback
-     * @return $this
+     * @param mixed $id User ID
+     * @return array|false User data or false
      */
-    public function extend($driver, callable|\Closure $callback)
+    public function getUser($id)
     {
-        $this->extensions[$driver] = $callback;
-        
-        return $this;
-    }
-
-    /**
-     * Get a guard instance by name.
-     *
-     * @param  string|null  $name
-     * @return mixed
-     */
-    public function guard($name = null)
-    {
-        $name = $name ?: $this->getDefaultDriver();
-
-        return $this->driver($name);
-    }
-
-    /**
-     * Create a session based authentication guard.
-     *
-     * @return SessionGuard
-     */
-    protected function createSessionDriver()
-    {
-        $provider = $this->getUserProvider(
-            $this->getConfig('session.provider')
-        );
-
-        return new SessionGuard(
-            'session',
-            $provider,
-            $this->container->make('session'),
-            $this->container->make('request')
-        );
-    }
-
-    /**
-     * Create a token based authentication guard.
-     *
-     * @return TokenGuard
-     */
-    protected function createTokenDriver()
-    {
-        $provider = $this->getUserProvider(
-            $this->getConfig('token.provider')
-        );
-
-        return new TokenGuard(
-            $provider,
-            $this->container->make('request'),
-            $this->getConfig('token.input_key', 'api_token'),
-            $this->getConfig('token.storage_key', 'api_token'),
-            $this->getConfig('token.hash', false)
-        );
-    }
-
-    /**
-     * Get the user provider configuration.
-     *
-     * @param  string|null  $provider
-     * @return array
-     */
-    protected function getUserProvider($provider = null)
-    {
-        $provider = $provider ?: $this->getDefaultUserProvider();
-
-        return $this->container->make('auth.user.provider');
-    }
-
-    /**
-     * Get the default user provider name.
-     *
-     * @return string
-     */
-    protected function getDefaultUserProvider()
-    {
-        return $this->config->get('auth.defaults.provider', 'users');
-    }
-
-    /**
-     * Get the guard configuration.
-     *
-     * @param  string  $name
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return mixed
-     */
-    protected function getConfig($name, $key = null, $default = null)
-    {
-        if (is_null($key)) {
-            return $this->config->get("auth.guards.{$name}", $default);
-        }
-
-        return $this->config->get("auth.guards.{$name}.{$key}", $default);
+        return $this->provider->getUser($id);
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 namespace Ody\Auth;
+
 /**
  * Auth Manager
  * Main interface for authentication in your framework
@@ -30,13 +31,29 @@ class AuthManager
         }
 
         // Get tokens
-        $tokens = $this->provider->generateTokens($user);
+        $tokens = $this->generateTokens($user);
 
         if (!$tokens) {
             return false;
         }
 
         return array_merge($user, $tokens);
+    }
+
+    /**
+     * Generate tokens for a user
+     *
+     * @param array $user User data
+     * @return array|false Tokens or false on failure
+     */
+    protected function generateTokens(array $user)
+    {
+        // This depends on your implementation, but typically:
+        if (method_exists($this->provider, 'generateTokens')) {
+            return $this->provider->generateTokens($user);
+        }
+
+        throw new \Exception('Unable to generate tokens.');
     }
 
     /**

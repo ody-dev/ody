@@ -72,13 +72,6 @@ class AuthServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Register the middleware
-        if ($this->container->has('middleware')) {
-            $middlewareManager = $this->container->make('middleware');
-
-            // Register as named middleware
-            $middlewareManager->registerNamed('auth', AuthMiddleware::class);
-            $middlewareManager->registerNamed('jwt', AuthMiddleware::class);
-        }
+        $this->loadRoutes(__dir__ . '/../routes.php');
     }
 }

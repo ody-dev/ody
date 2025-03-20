@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         beStrictAboutChangesToGlobalState="true"
+         beStrictAboutOutputDuringTests="true"
+         beStrictAboutResourceUsageDuringSmallTests="true"
+         beStrictAboutTodoAnnotatedTests="true"
+         verbose="true">
+    <testsuites>
+        <testsuite name="unit">
+            <directory>./tests</directory>
+        </testsuite>
+        <testsuite name="integration">
+            <directory>./tests/Integration</directory>
+        </testsuite>
+        <testsuite name="functional">
+            <directory>./tests/Functional</directory>
+        </testsuite>
+        <testsuite name="providers">
+            <directory>./tests/Providers</directory>
+        </testsuite>
+        <testsuite name="all">
+            <directory>./tests</directory>
+        </testsuite>
+    </testsuites>
+
+    <coverage processUncoveredFiles="true">
+        <include>
+            <directory suffix=".php">./src</directory>
+        </include>
+        <exclude>
+            <directory>./src/routes.php</directory>
+        </exclude>
+        <report>
+            <html outputDirectory="./coverage-report" lowUpperBound="50" highLowerBound="90"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
+        </report>
+    </coverage>
+
+    <php>
+        <ini name="display_errors" value="true"/>
+        <ini name="error_reporting" value="-1"/>
+        <ini name="memory_limit" value="512M"/>
+        <env name="APP_ENV" value="testing"/>
+        <env name="JWT_SECRET_KEY" value="test_secret_key_for_jwt"/>
+        <env name="AUTH_PROVIDER" value="direct"/>
+        <env name="AUTH_SERVICE_HOST" value="localhost"/>
+        <env name="AUTH_SERVICE_PORT" value="9501"/>
+        <env name="SERVICE_ID" value="test_service"/>
+        <env name="SERVICE_SECRET" value="test_service_secret"/>
+    </php>
+
+    <logging>
+        <junit outputFile="junit.xml"/>
+        <testdoxHtml outputFile="testdox.html"/>
+        <testdoxText outputFile="testdox.txt"/>
+    </logging>
+</phpunit>

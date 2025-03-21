@@ -60,8 +60,7 @@ class Bootstrap
             $container->instance(ServiceProviderManager::class, $providerManager);
 
             // Determine if we're running in console mode
-            $runningInConsole = self::detectConsoleMode();
-            $container->instance('runningInConsole', $runningInConsole);
+            $container->instance('runningInConsole', false);
 
             // Register early classes needed for successful application instantiation
             self::registerEarlyClasses($container, $providerManager);
@@ -170,15 +169,5 @@ class Bootstrap
         $container->alias(Application::class, 'app');
 
         return $application;
-    }
-
-    /**
-     * Detect if the application is running in console mode
-     *
-     * @return bool
-     */
-    private static function detectConsoleMode(): bool
-    {
-        return php_sapi_name() === 'cli';
     }
 }

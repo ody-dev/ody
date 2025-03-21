@@ -158,19 +158,7 @@ abstract class ServiceProvider
      */
     protected function isRunningInConsole(): bool
     {
-        // Check if the container explicitly knows we're in console
-        if (isset($this->container) && $this->container->has('runningInConsole')) {
-            return $this->container->make('runningInConsole');
-        }
-
-        // Check PHP SAPI name
-        if (php_sapi_name() === 'cli' || php_sapi_name() === 'phpdbg') {
-            return true;
-        }
-
-        // Check if running in Lambda/Vapor CLI environment
-        return in_array(PHP_SAPI, ['cli', 'phpdbg']) ||
-            (isset($_ENV['LAMBDA_TASK_ROOT']) && isset($_ENV['AWS_LAMBDA_RUNTIME_API']));
+        return $this->container->get('runningInConsole') ?? false;
     }
 
     /**
@@ -182,6 +170,10 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path, array $attributes = []): void
     {
+        if ($this->isRunningInConsole()) {
+            return;
+        }
+
         if (!file_exists($path)) {
             return;
         }
@@ -207,6 +199,10 @@ abstract class ServiceProvider
      */
     protected function loadRoutes(string $path, array $attributes = []): void
     {
+        if ($this->isRunningInConsole()) {
+            return;
+        }
+
         // Check if the RouteServiceProvider is registered
         if ($this->container->has('Ody\Foundation\Providers\RouteServiceProvider')) {
             // Use the provider's method if available

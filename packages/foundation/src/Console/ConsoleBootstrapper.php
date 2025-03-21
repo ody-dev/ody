@@ -94,9 +94,6 @@ class ConsoleBootstrapper
 
         foreach ($registry->getCommands() as $command) {
             $console->add($command);
-            if ($logger) {
-                $logger->debug("Added command to console: " . $command->getName());
-            }
         }
     }
 

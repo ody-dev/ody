@@ -92,7 +92,6 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
         ConfigServiceProvider::class,
         LoggingServiceProvider::class,
         ApplicationServiceProvider::class,
-        RouteServiceProvider::class  // Added the RouteServiceProvider
     ];
 
     /**

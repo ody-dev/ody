@@ -117,6 +117,8 @@ class Bootstrap
     }
 
     /**
+     * @deprecated method was used during development to bypass a bug.
+     *
      * Register essential classes needed before full application bootstrap
      *
      * @param Container $container
@@ -126,26 +128,26 @@ class Bootstrap
     private static function registerEarlyClasses(Container $container, ServiceProviderManager $providerManager): void
     {
         // Register a temporary logger until the logging provider is initialized
-        $container->singleton(LoggerInterface::class, function() {
-            return new NullLogger();
-        });
+//        $container->singleton(LoggerInterface::class, function() {
+//            return new NullLogger();
+//        });
 
         // Register Router with singleton lifecycle
-        $container->singleton(Router::class, function ($container) {
-            return new Router(
-                $container,
-                $container->has(MiddlewareManager::class) ? $container->make(MiddlewareManager::class) : null
-            );
-        });
+//        $container->singleton(Router::class, function ($container) {
+//            return new Router(
+//                $container,
+//                $container->has(MiddlewareManager::class) ? $container->make(MiddlewareManager::class) : null
+//            );
+//        });
 
         // Alias for convenient service location
-        $container->alias(Router::class, 'router');
+//        $container->alias(Router::class, 'router');
 
         // MiddlewareManager registration
-        $container->singleton(MiddlewareManager::class, function ($container) {
-            return new MiddlewareManager($container);
-        });
-        $container->alias(MiddlewareManager::class, 'middleware.manager');
+//        $container->singleton(MiddlewareManager::class, function ($container) {
+//            return new MiddlewareManager($container);
+//        });
+//        $container->alias(MiddlewareManager::class, 'middleware.manager');
 
         // RouteGroup requires no registration
     }

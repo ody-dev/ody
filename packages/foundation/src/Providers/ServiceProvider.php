@@ -117,7 +117,6 @@ abstract class ServiceProvider
 
         // Skip if command registry is not available
         if (!$this->container->has(CommandRegistry::class)) {
-            // Store commands for later registration if we're in ConsoleServiceProvider
             if (get_class($this) === ConsoleServiceProvider::class && property_exists($this, 'commands')) {
                 $this->commands = array_merge($this->commands, $commands);
             }
@@ -204,9 +203,9 @@ abstract class ServiceProvider
         }
 
         // Check if the RouteServiceProvider is registered
-        if ($this->container->has('Ody\Foundation\Providers\RouteServiceProvider')) {
+        if ($this->container->has(RouteServiceProvider::class)) {
             // Use the provider's method if available
-            $routeServiceProvider = $this->container->make('Ody\Foundation\Providers\RouteServiceProvider');
+            $routeServiceProvider = $this->container->make(RouteServiceProvider::class);
             if (method_exists($routeServiceProvider, 'loadRoutes')) {
                 $routeServiceProvider->loadRoutes($path, $attributes);
                 return;

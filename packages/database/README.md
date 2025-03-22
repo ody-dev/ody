@@ -44,7 +44,7 @@ issues may arise. Open an issue on GitHub and we'll look into it asap.
 ## Benchmarks
 
 The current benchmarks are insanely good, 6k to 8k queries per second while firing off queries asynchronously, 10
-coroutines with each performing 2000 queries. This was ran through the connection pool with standard settings.
+coroutines with each performing 2000 queries. This was run through the connection pool with standard settings.
 
 `$this->userRepository->getAll();` eager loads relationships on top of the base `select * from users;` query.
 

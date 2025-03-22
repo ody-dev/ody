@@ -35,6 +35,8 @@ class DatabaseServiceProvider extends ServiceProvider
                 RollbackCommand::class,
                 InitCommand::class,
             ]);
+
+            return;
         }
 
         // Check if we should use Swoole pooling

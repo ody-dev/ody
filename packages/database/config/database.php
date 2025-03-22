@@ -33,15 +33,5 @@ return [
     ],
     'default_environment' => 'local',
     'log_table_name' => 'migrations_log',
-    'connection_pool' => [
-        'enabled' => false,
-        'host' => '127.0.0.1',
-        'port' => 9504,
-        'additional' => [
-            'enable_delay_receive' => true,
-        ],
-        'allowed_ips' => [
-            '127.0.0.1'
-        ],
-    ]
+    'enable_connection_pool' => true
 ];

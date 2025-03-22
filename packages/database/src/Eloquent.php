@@ -43,8 +43,6 @@ class Eloquent
 
         // If Swoole coroutines are available and pool is enabled, register resolver
         if (config('database.enable_connection_pool', false) && extension_loaded('swoole')) {
-            logger()->info("Registering Swoole-aware MySQL connection resolver");
-
             // Register the custom connection resolver for MySQL
             Connection::resolverFor('mysql', function ($pdo, $database, $prefix, $config) {
                 // Use our factory to create connections from the pool

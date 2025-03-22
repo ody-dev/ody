@@ -25,6 +25,11 @@ class DatabaseServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Publish configuration
+        $this->publishes([
+            __DIR__ . '/../../config/database.php' => 'database.php'
+        ], 'ody/database');
+
         if ($this->isRunningInConsole()) {
             $this->registerCommands([
                 MigrateCommand::class,

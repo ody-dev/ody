@@ -73,5 +73,10 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadRoutes(__dir__ . '/../routes.php');
+
+        // Publish configuration
+        $this->publishes([
+            __DIR__ . '/../../config/auth.php' => 'auth.php'
+        ], 'ody/auth');
     }
 }

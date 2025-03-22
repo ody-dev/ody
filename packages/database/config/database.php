@@ -33,5 +33,6 @@ return [
     ],
     'default_environment' => 'local',
     'log_table_name' => 'migrations_log',
-    'enable_connection_pool' => true
+    'enable_connection_pool' => env('DB_ENABLE_POOL', true),
+    'pool_size' => env('DB_POOL_SIZE', 64),
 ];

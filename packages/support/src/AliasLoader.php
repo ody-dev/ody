@@ -1,16 +1,11 @@
 <?php
-/*
- * This file is part of ODY framework.
- *
- * @link     https://ody.dev
- * @document https://ody.dev/docs
- * @license  https://github.com/ody-dev/ody-core/blob/master/LICENSE
- */
 
 namespace Ody\Support;
 
 /**
- * Class alias loader
+ * Class AliasLoader
+ *
+ * Handles the loading of class aliases
  */
 class AliasLoader
 {
@@ -19,28 +14,28 @@ class AliasLoader
      *
      * @var array
      */
-    protected $aliases;
+    protected array $aliases;
 
     /**
      * Indicates if a loader has been registered.
      *
      * @var bool
      */
-    protected $registered = false;
+    protected bool $registered = false;
 
     /**
      * The singleton instance of the loader.
      *
      * @var AliasLoader|null
      */
-    protected static $instance = null;
+    protected static ?AliasLoader $instance = null;
 
     /**
      * Create a new AliasLoader instance.
      *
-     * @param  array  $aliases
+     * @param array $aliases
      */
-    private function __construct(array $aliases)
+    protected function __construct(array $aliases)
     {
         $this->aliases = $aliases;
     }
@@ -48,40 +43,51 @@ class AliasLoader
     /**
      * Get or create the singleton alias loader instance.
      *
-     * @param  array  $aliases
+     * @param array $aliases
      * @return AliasLoader
      */
-    public static function getInstance(array $aliases = []): self
+    public static function getInstance(array $aliases = []): AliasLoader
     {
         if (is_null(static::$instance)) {
             static::$instance = new static($aliases);
+        } else {
+            static::$instance->merge($aliases);
         }
-
-        $aliases = array_merge(static::$instance->getAliases(), $aliases);
-
-        static::$instance->setAliases($aliases);
 
         return static::$instance;
     }
 
     /**
+     * Merge the given aliases with the existing aliases.
+     *
+     * @param array $aliases
+     * @return void
+     */
+    public function merge(array $aliases): void
+    {
+        $this->aliases = array_merge($this->aliases, $aliases);
+    }
+
+    /**
      * Load a class alias if it is registered.
      *
-     * @param  string  $alias
+     * @param string $alias
      * @return bool|null
      */
-    public function load(string $alias)
+    public function load(string $alias): ?bool
     {
         if (isset($this->aliases[$alias])) {
             return class_alias($this->aliases[$alias], $alias);
         }
+
+        return null;
     }
 
     /**
      * Add an alias to the loader.
      *
-     * @param  string  $alias
-     * @param  string  $class
+     * @param string $alias
+     * @param string $class
      * @return void
      */
     public function alias(string $alias, string $class): void
@@ -97,19 +103,10 @@ class AliasLoader
     public function register(): void
     {
         if (!$this->registered) {
-            $this->prependToLoaderStack();
+            // Register with a higher priority than normal autoloaders
+            spl_autoload_register([$this, 'load'], true, true);
             $this->registered = true;
         }
-    }
-
-    /**
-     * Prepend the load method to the auto-loader stack.
-     *
-     * @return void
-     */
-    protected function prependToLoaderStack(): void
-    {
-        spl_autoload_register([$this, 'load'], true, true);
     }
 
     /**
@@ -125,7 +122,7 @@ class AliasLoader
     /**
      * Set the registered aliases.
      *
-     * @param  array  $aliases
+     * @param array $aliases
      * @return void
      */
     public function setAliases(array $aliases): void
@@ -134,7 +131,7 @@ class AliasLoader
     }
 
     /**
-     * Indicates if the loader has been registered.
+     * Check if a loader has been registered.
      *
      * @return bool
      */
@@ -146,22 +143,11 @@ class AliasLoader
     /**
      * Set the "registered" state of the loader.
      *
-     * @param  bool  $value
+     * @param bool $value
      * @return void
      */
     public function setRegistered(bool $value): void
     {
         $this->registered = $value;
-    }
-
-    /**
-     * Set the real-time facade mode.
-     *
-     * @param  bool  $value
-     * @return void
-     */
-    public static function setFacadeInstance(self $loader): void
-    {
-        static::$instance = $loader;
     }
 }

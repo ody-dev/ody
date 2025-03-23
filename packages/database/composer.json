@@ -13,8 +13,12 @@
     "php": ">=8.3",
     "ext-pdo": "*",
     "ext-swoole": "^5.1 || ^6.0",
-    "illuminate/database": "^11.43",
     "psr/log": "^3.0"
+  },
+  "suggest": {
+    "illuminate/database": "Required for using Eloquent ORM (^11.43)",
+    "doctrine/orm": "Required for using Doctrine ORM (^3.0)",
+    "doctrine/dbal": "Required for using Doctrine DBAL (^4.0)"
   },
   "require-dev": {
     "phpunit/phpunit": "^9.6",
@@ -29,6 +33,14 @@
     "psr-4": {
       "Ody\\DB\\Tests\\": "tests/"
     }
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "Ody\\DB\\Installer::promptForProvider"
+    ],
+    "post-update-cmd": [
+      "Ody\\DB\\Installer::promptForProvider"
+    ]
   },
   "extra": {
     "providers": [

@@ -17,10 +17,17 @@ class DatabaseServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Register DB facades
+        if (class_exists('Illuminate\\Support\\Facades\\Facade')) {
+            \Illuminate\Support\Facades\Facade::setFacadeApplication($this->container);
+        }
+
         $this->container->singleton('db', function ($app) {
             return new \Ody\DB\Facades\DB();
         });
+
+//        $this->container->singleton(DB::class, function ($app) {
+//            return new \Ody\DB\Facades\DB();
+//        });
     }
 
     public function boot(): void

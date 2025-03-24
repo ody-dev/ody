@@ -148,14 +148,12 @@ class MySqlConnection extends Connection
      */
     public function disconnect()
     {
-        // If we have a pool adapter, return the PDO to the pool
         if ($this->poolAdapter && $this->pdo) {
-            // Don't directly return the PDO, let the PDO be handled by the garbage collector
-            // This avoids the type error with PDOProxy
+            $pdo = $this->pdo;
             $this->pdo = null;
             $this->readPdo = null;
+            $this->poolAdapter->return($pdo);  // Explicitly return the PDO object
         } else {
-            // Default disconnect behavior
             $this->setPdo(null)->setReadPdo(null);
         }
     }
@@ -173,6 +171,39 @@ class MySqlConnection extends Connection
                 $this->pdo = $this->poolAdapter->borrow();
             } else {
                 $this->reconnect();
+            }
+        }
+    }
+
+    /**
+     * Execute a Closure within a transaction.
+     *
+     * @param \Closure $callback
+     * @param int $attempts
+     * @return mixed
+     *
+     * @throws \Throwable
+     */
+    public function transaction(\Closure $callback, $attempts = 1)
+    {
+        for ($currentAttempt = 1; $currentAttempt <= $attempts; $currentAttempt++) {
+            $this->beginTransaction();
+
+            try {
+                $result = $callback($this);
+
+                $this->commit();
+
+                return $result;
+            } catch (\Throwable $e) {
+                $this->rollBack();
+
+                if ($currentAttempt < $attempts &&
+                    ($this->causedByLostConnection($e) || $this->causedByDeadlock($e))) {
+                    continue;
+                }
+
+                throw $e;
             }
         }
     }

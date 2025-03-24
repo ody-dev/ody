@@ -18,9 +18,6 @@ class Connection extends BaseConnection
 
     public function selectOne($query, $bindings = array(), $useReadPdo = true)
     {
-        // This method is pretty much straight forward. Call the
-        // parent::select() method. If it returns any results
-        // normalize the first result or else return null.
         return parent::select($query, $bindings);
     }
 }

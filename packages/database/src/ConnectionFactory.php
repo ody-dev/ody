@@ -3,7 +3,6 @@
 namespace Ody\DB;
 
 use Ody\DB\ConnectionPool\ConnectionPoolAdapter;
-use Swoole\Coroutine;
 
 class ConnectionFactory
 {
@@ -19,7 +18,12 @@ class ConnectionFactory
      *
      * @var bool
      */
-    protected static $registeredShutdown = false;
+    protected static bool $registeredShutdown = false;
+
+    /**
+     * @var array
+     */
+    protected static array $coroutineConnections = [];
 
     /**
      * Create a new connection instance based on the configuration.
@@ -30,7 +34,12 @@ class ConnectionFactory
      */
     public static function make(array $config, string $name = 'default')
     {
-        logger()->debug("ConnectionFactory::make()");
+        $cid = \Swoole\Coroutine::getCid();
+
+        // If we already have a connection for this coroutine, return it
+        if (isset(static::$coroutineConnections[$cid][$name])) {
+            return static::$coroutineConnections[$cid][$name];
+        }
 
         // Create or get the pool for this connection
         $pool = self::getPool($config, $name);
@@ -49,11 +58,24 @@ class ConnectionFactory
         // Set the pool adapter on the connection
         $connection->setPoolAdapter($pool);
 
-        // Set up deferred cleanup in the current coroutine
-        if (Coroutine::getCid() >= 0) {
-            Coroutine::defer(function () use ($connection) {
-                $connection->disconnect();
+        // Store it for this coroutine
+        static::$coroutineConnections[$cid][$name] = $connection;
+
+        // Set up deferred cleanup when the coroutine ends
+        if (!isset(static::$coroutineConnections[$cid]['__cleanup_registered'])) {
+            \Swoole\Coroutine::defer(function () use ($cid) {
+                // Disconnect all connections for this coroutine
+                if (isset(static::$coroutineConnections[$cid])) {
+                    foreach (static::$coroutineConnections[$cid] as $conn) {
+                        if ($conn instanceof Connection) {
+                            $conn->disconnect();
+                        }
+                    }
+                    unset(static::$coroutineConnections[$cid]);
+                }
             });
+
+            static::$coroutineConnections[$cid]['__cleanup_registered'] = true;
         }
 
         return $connection;
@@ -78,22 +100,29 @@ class ConnectionFactory
 
         // Only create the pool if it doesn't exist
         if (!isset(self::$pools[$name])) {
-            logger()->info("Creating connection pool for '$name'");
+            $lock = new \Swoole\Lock(SWOOLE_MUTEX);
+            $lock->lock();
 
-            $poolSize = $config['pool_size'] ?? 32;
+            try {
+                logger()->info("Creating connection pool for '$name'");
 
-            // Make sure the config has all the required keys for the adapter
-            $adapterConfig = [
-                'host' => $config['host'] ?? 'localhost',
-                'port' => $config['port'] ?? 3306,
-                'db_name' => $config['database'] ?? $config['db_name'] ?? '',
-                'charset' => $config['charset'] ?? 'utf8mb4',
-                'username' => $config['username'] ?? '',
-                'password' => $config['password'] ?? '',
-                'options' => $config['options'] ?? [],
-            ];
+                $poolSize = $config['pool_size'] ?? 32;
 
-            self::$pools[$name] = new ConnectionPoolAdapter($adapterConfig, $poolSize);
+                // Make sure the config has all the required keys for the adapter
+                $adapterConfig = [
+                    'host' => $config['host'] ?? 'localhost',
+                    'port' => $config['port'] ?? 3306,
+                    'db_name' => $config['database'] ?? $config['db_name'] ?? '',
+                    'charset' => $config['charset'] ?? 'utf8mb4',
+                    'username' => $config['username'] ?? '',
+                    'password' => $config['password'] ?? '',
+                    'options' => $config['options'] ?? [],
+                ];
+
+                self::$pools[$name] = new ConnectionPoolAdapter($adapterConfig, $poolSize);
+            } finally {
+                $lock->unlock();
+            }
         } else {
             logger()->debug("Reusing existing connection pool for '$name'");
         }

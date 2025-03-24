@@ -79,8 +79,15 @@ class ConnectionPoolAdapter
         $this->metrics['borrowed_total']++;
         $pdo = $this->pool->get();
 
-        // Additional runtime checks or warmup could be done here
-        // For example: ensure connection is still valid or set session variables
+        // Safety check: reset any existing transaction state
+        try {
+            if ($pdo->inTransaction()) {
+                logger()->warning('Found active transaction when borrowing connection, rolling back');
+                $pdo->rollBack();
+            }
+        } catch (\Throwable $e) {
+            logger()->error('Error checking connection state: ' . $e->getMessage());
+        }
 
         return $pdo;
     }
@@ -97,8 +104,24 @@ class ConnectionPoolAdapter
             return;
         }
 
-        // Optionally clean up the connection before returning to pool
-        // Reset any session variables, clear warnings, etc.
+        // Reset connection state before returning to pool
+        try {
+            // If transaction is active, roll it back
+            if ($connection->inTransaction()) {
+                logger()->warning("Rolling back abandoned transaction when returning connection to pool");
+                $connection->rollBack();
+            }
+
+            // Reset any session variables if needed
+            $connection->query("SET SESSION SQL_MODE=DEFAULT");
+            // Other cleanup...
+
+        } catch (\Throwable $e) {
+            logger()->error("Error resetting connection state: " . $e->getMessage());
+            // If we can't reset the connection, it might be safer to discard it
+            $this->metrics['errors_total']++;
+            return;
+        }
 
         $this->metrics['returned_total']++;
         $this->pool->put($connection);
@@ -110,19 +133,5 @@ class ConnectionPoolAdapter
     public function close(): void
     {
         $this->pool->close();
-    }
-
-    /**
-     * Get pool metrics
-     *
-     * @return array
-     */
-    public function getMetrics(): array
-    {
-        return array_merge($this->metrics, [
-            'size' => $this->pool->getLength(),
-            'idle' => $this->pool->getIdleCount(),
-            'active' => $this->pool->getLength() - $this->pool->getIdleCount()
-        ]);
     }
 }

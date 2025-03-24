@@ -6,10 +6,6 @@ use Illuminate\Database\Connection;
 use Ody\DB\ConnectionFactory;
 
 /**
- * // * @method static \Illuminate\Database\Connection connection(string $name = null)
- * // * @method static \Illuminate\Database\Query\Builder table(string $table, string $as = null)
- * // * @method static mixed transaction(\Closure $callback, int $attempts = 1)
- * // * @method static \Illuminate\Database\Query\Builder select(string $query, array $bindings = [], bool $useReadPdo = true)
  * @method static int insert(string $query, array $bindings = [])
  * @method static int update(string $query, array $bindings = [])
  * @method static int delete(string $query, array $bindings = [])
@@ -83,7 +79,6 @@ class DB
 
     public static function beginTransaction(): void
     {
-        error_log('test');
         static::connection()->beginTransaction();
     }
 

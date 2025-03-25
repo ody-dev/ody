@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  *  This file is part of ODY framework.
  *
@@ -7,28 +9,26 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\DB;
+namespace Ody\DB\Eloquent;
 
+use Illuminate\Database\Connection;
+use Illuminate\Database\Events\StatementPrepared;
 use Illuminate\Database\Query\Grammars\MySqlGrammar as QueryGrammar;
 use Illuminate\Database\Schema\Grammars\MySqlGrammar as SchemaGrammar;
-use Ody\DB\ConnectionPool\ConnectionPoolAdapter;
+use Ody\DB\ConnectionManager;
+use Ody\DB\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
+use PDOStatement;
 use Swoole\Coroutine;
+use Swoole\Database\PDOStatementProxy;
 
 class MySqlConnection extends Connection
 {
-    /**
-     * The connection pool adapter
-     *
-     * @var ConnectionPoolAdapter|null
-     */
-    protected $poolAdapter = null;
-
     /**
      * The coroutine ID that owns this connection
      *
      * @var int|null
      */
-    protected $ownerCoroutineId = null;
+    protected ?int $ownerCoroutineId = null;
 
     /**
      * {@inheritdoc}
@@ -52,7 +52,7 @@ class MySqlConnection extends Connection
      *
      * @return void
      */
-    public function useDefaultQueryGrammar()
+    public function useDefaultQueryGrammar(): void
     {
         $this->queryGrammar = $this->getDefaultQueryGrammar();
     }
@@ -60,9 +60,9 @@ class MySqlConnection extends Connection
     /**
      * Get the default query grammar instance.
      *
-     * @return \Illuminate\Database\Query\Grammars\MySqlGrammar
+     * @return QueryGrammar
      */
-    protected function getDefaultQueryGrammar()
+    protected function getDefaultQueryGrammar(): QueryGrammar
     {
         ($grammar = new QueryGrammar)->setConnection($this);
 
@@ -74,7 +74,7 @@ class MySqlConnection extends Connection
      *
      * @return void
      */
-    public function useDefaultSchemaGrammar()
+    public function useDefaultSchemaGrammar(): void
     {
         $this->schemaGrammar = $this->getDefaultSchemaGrammar();
     }
@@ -82,9 +82,9 @@ class MySqlConnection extends Connection
     /**
      * Get the default schema grammar instance.
      *
-     * @return \Illuminate\Database\Schema\Grammars\MySqlGrammar
+     * @return SchemaGrammar
      */
-    protected function getDefaultSchemaGrammar()
+    protected function getDefaultSchemaGrammar(): SchemaGrammar
     {
         ($grammar = new SchemaGrammar)->setConnection($this);
 
@@ -92,28 +92,16 @@ class MySqlConnection extends Connection
     }
 
     /**
-     * Set the connection pool adapter.
-     *
-     * @param ConnectionPoolAdapter $adapter
-     * @return $this
-     */
-    public function setPoolAdapter(ConnectionPoolAdapter $adapter)
-    {
-        $this->poolAdapter = $adapter;
-        return $this;
-    }
-
-    /**
      * Configure the PDO prepared statement.
      *
-     * @param \PDOStatement|\Swoole\Database\PDOStatementProxy $statement
-     * @return \PDOStatement|\Swoole\Database\PDOStatementProxy
+     * @param PDOStatement|PDOStatementProxy $statement
+     * @return PDOStatement|PDOStatementProxy
      */
-    protected function prepared($statement)
+    protected function prepared($statement): PDOStatementProxy|PDOStatement
     {
         $statement->setFetchMode($this->fetchMode);
 
-        $this->event(new \Illuminate\Database\Events\StatementPrepared($this, $statement));
+        $this->event(new StatementPrepared($this, $statement));
 
         return $statement;
     }
@@ -125,8 +113,9 @@ class MySqlConnection extends Connection
      * @param array $bindings
      * @param bool $useReadPdo
      * @return array
+     * @throws BorrowTimeoutException
      */
-    public function select($query, $bindings = [], $useReadPdo = true)
+    public function select($query, $bindings = [], $useReadPdo = true): array
     {
         $pdo = ConnectionManager::getConnection();
 
@@ -144,39 +133,5 @@ class MySqlConnection extends Connection
 
             return $statement->fetchAll();
         });
-    }
-
-    /**
-     * Disconnect from the underlying PDO connection.
-     *
-     * @return void
-     */
-    public function disconnect()
-    {
-        if ($this->poolAdapter && $this->pdo) {
-            $pdo = $this->pdo;
-            $this->pdo = null;
-            $this->readPdo = null;
-            $this->poolAdapter->return($pdo);  // Explicitly return the PDO object
-        } else {
-            $this->setPdo(null)->setReadPdo(null);
-        }
-    }
-
-    /**
-     * Reconnect to the database if a PDO connection is missing.
-     *
-     * @return void
-     */
-    public function reconnectIfMissingConnection()
-    {
-        if (is_null($this->pdo)) {
-            // If using pool, get a connection from the pool
-            if ($this->poolAdapter) {
-                $this->pdo = $this->poolAdapter->borrow();
-            } else {
-                $this->reconnect();
-            }
-        }
     }
 }

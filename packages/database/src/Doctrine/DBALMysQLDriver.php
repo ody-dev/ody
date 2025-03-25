@@ -9,56 +9,17 @@
 
 namespace Ody\DB\Doctrine;
 
-use Ody\DB\ConnectionPool\ConnectionPoolFactory;
-use Ody\DB\ConnectionPool\PDOConnectionFactory;
-use Ody\DB\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
-use Ody\DB\ConnectionPool\Pool\PoolInterface;
 use Doctrine\DBAL\Driver\AbstractMySQLDriver;
 use Doctrine\DBAL\Driver\Connection;
-use Doctrine\DBAL\Driver\PDO\MySQL\Driver as MySQLDriver;
+use Ody\DB\ConnectionManager;
+use Ody\DB\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use PDO;
 
 class DBALMysQLDriver extends AbstractMySQLDriver
 {
-    private static ?PoolInterface $connectionPool = null;
     private ?PDO $connection = null;
-
-    /**
-     * Initialize the connection pool
-     *
-     * @param int $poolSize
-     * @param float $idleTimeoutSec
-     * @param float $maxLifetimeSec
-     * @return void
-     */
-    public static function initializePool(
-        int $poolSize = 10,
-        float $idleTimeoutSec = 30.0,
-        float $maxLifetimeSec = 300.0
-    ): void {
-        if (self::$connectionPool !== null) {
-            return;
-        }
-
-        // This would need to be configured based on your database settings
-        $factory = new PDOConnectionFactory(
-            dsn: 'mysql:host=localhost;dbname=your_database',
-            username: 'username',
-            password: 'password',
-            options: [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]
-        );
-
-        $poolFactory = ConnectionPoolFactory::create($poolSize, $factory);
-        $poolFactory->setIdleTimeoutSec($idleTimeoutSec);
-        $poolFactory->setMaxLifetimeSec($maxLifetimeSec);
-        $poolFactory->setBindToCoroutine(true);
-        $poolFactory->setAutoReturn(true);
-
-        self::$connectionPool = $poolFactory->instantiate('doctrine-dbal-pool');
-    }
+    private string $poolName = 'default';
+    private array $config = [];
 
     /**
      * Connect to the database via the connection pool
@@ -69,12 +30,52 @@ class DBALMysQLDriver extends AbstractMySQLDriver
      */
     public function connect(array $params): Connection
     {
-        if (self::$connectionPool === null) {
-            throw new \RuntimeException('Connection pool has not been initialized. Call DBALMySQLDriver::initializePool() first.');
-        }
+        // Convert DBAL params to ConnectionManager config format
+        $this->config = [
+            'driver' => $params['driver'] ?? 'mysql',
+            'host' => $params['host'] ?? 'localhost',
+            'port' => $params['port'] ?? 3306,
+            'database' => $params['dbname'] ?? '',
+            'username' => $params['user'] ?? '',
+            'password' => $params['password'] ?? '',
+            'charset' => $params['charset'] ?? 'utf8mb4',
+            'options' => $params['driverOptions'] ?? [
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ],
+        ];
 
-        // Borrow a PDO connection from the pool
-        $this->connection = self::$connectionPool->borrow();
+        // Check if connection pool is enabled
+        if (config('database.enable_connection_pool', true)) {
+            // Use a custom pool name if provided
+            if (isset($params['poolName'])) {
+                $this->poolName = $params['poolName'];
+            }
+
+            // Initialize the pool if it doesn't exist yet
+            ConnectionManager::initPool($this->config, $this->poolName);
+
+            // Borrow a PDO connection from the pool
+            $this->connection = ConnectionManager::getConnection($this->poolName);
+        } else {
+            // Create a direct PDO connection if pool is disabled
+            $dsn = sprintf(
+                '%s:host=%s;port=%s;dbname=%s;charset=%s',
+                $this->config['driver'],
+                $this->config['host'],
+                $this->config['port'],
+                $this->config['database'],
+                $this->config['charset']
+            );
+
+            $this->connection = new PDO(
+                $dsn,
+                $this->config['username'],
+                $this->config['password'],
+                $this->config['options']
+            );
+        }
 
         // Create a connection wrapper that implements Doctrine's Connection interface
         return new PDOConnection($this->connection);
@@ -89,8 +90,8 @@ class DBALMysQLDriver extends AbstractMySQLDriver
             return false;
         }
 
-        // Return the connection to the pool
-        self::$connectionPool->return($this->connection);
+        // No need to explicitly return the connection since it's auto-returned by ConnectionManager
+        // when the coroutine ends, thanks to the autoReturn and bindToCoroutine settings
         $this->connection = null;
 
         return true;

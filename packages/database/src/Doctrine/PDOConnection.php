@@ -10,6 +10,7 @@
 namespace Ody\DB\Doctrine;
 
 use Doctrine\DBAL\Driver\Connection;
+use Doctrine\DBAL\Driver\PDO\Statement as PDOStatement;
 use Doctrine\DBAL\Driver\Result;
 use Doctrine\DBAL\Driver\Statement;
 use PDO;
@@ -17,62 +18,97 @@ use PDO;
 /**
  * Connection wrapper that implements Doctrine's Connection interface
  */
-class PDOConnection implements Connection
+readonly class PDOConnection implements Connection
 {
     public function __construct(private PDO $pdo)
     {
     }
 
-    // Implement all the methods required by Doctrine's Connection interface
-    // Most of these can just delegate to the underlying PDO instance
-    // ...
+    /**
+     * {@inheritdoc}
+     */
     public function prepare(string $sql): Statement
     {
-        // TODO: Implement prepare() method.
+        return new PDOStatement($this->pdo->prepare($sql));
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function query(string $sql): Result
     {
-        // TODO: Implement query() method.
+        $stmt = $this->pdo->query($sql);
+
+        return new PDOResult($stmt);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function quote(string $value): string
     {
-        // TODO: Implement quote() method.
+        return $this->pdo->quote($value);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function exec(string $sql): int|string
     {
-        // TODO: Implement exec() method.
+        $result = $this->pdo->exec($sql);
+
+        if ($result === false) {
+            throw new \PDOException("PDO::exec() returned false");
+        }
+
+        return $result;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function lastInsertId(): int|string
     {
-        // TODO: Implement lastInsertId() method.
+        return $this->pdo->lastInsertId();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function beginTransaction(): void
     {
-        // TODO: Implement beginTransaction() method.
+        $this->pdo->beginTransaction();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function commit(): void
     {
-        // TODO: Implement commit() method.
+        $this->pdo->commit();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function rollBack(): void
     {
-        // TODO: Implement rollBack() method.
+        $this->pdo->rollBack();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getNativeConnection()
     {
-        // TODO: Implement getNativeConnection() method.
+        return $this->pdo;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getServerVersion(): string
     {
-        // TODO: Implement getServerVersion() method.
+        return $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
     }
 }

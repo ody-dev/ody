@@ -20,7 +20,6 @@ namespace Ody\Foundation;
 use Ody\Container\Container;
 use Ody\Container\Contracts\BindingResolutionException;
 use Ody\Foundation\Http\ControllerDispatcher;
-use Ody\Foundation\Http\ControllerPool;
 use Ody\Foundation\Http\ControllerResolver;
 use Ody\Foundation\Http\Request;
 use Ody\Foundation\Http\Response;
@@ -192,12 +191,63 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
         // Boot all registered providers
         $this->providerManager->boot();
 
-        // Pre-cache all controllers
+        // Configure controller caching
+        $this->configureControllerCaching();
+
+        // Pre-cache controllers if caching is enabled
         $this->precacheControllers();
 
         $this->bootstrapped = true;
         logger()->debug("Application::bootstrap() completed");
         return $this;
+    }
+
+    /**
+     * Configure controller caching based on application configuration
+     */
+    protected function configureControllerCaching(): void
+    {
+        // Get configuration
+        $config = $this->container->make('config');
+        $enableCaching = $config->get('app.controller_cache.enabled', true);
+        $excludedControllers = $config->get('app.controller_cache.excluded', []);
+
+        ($enableCaching) ?
+            Http\ControllerPool::enableCaching() :
+            Http\ControllerPool::disableCaching();
+
+        // Register excluded controllers
+        if (!empty($excludedControllers)) {
+            Http\ControllerPool::excludeControllers($excludedControllers);
+        }
+    }
+
+    public function precacheControllers()
+    {
+        // Get configuration
+        $config = $this->container->get('config');
+        $enableCaching = $config->get('app.controller_cache.enabled', true);
+
+        // Skip precaching if caching is disabled
+        if (!$enableCaching) {
+            logger()->debug("Controller precaching skipped (caching disabled)");
+            return;
+        }
+
+        $router = $this->container->make(Router::class);
+        $routes = $router->getRoutes();
+
+        foreach ($routes as $route) {
+            $handler = $route[2]; // The handler
+
+            // If it's a controller@method string format
+            if (is_string($handler) && strpos($handler, '@') !== false) {
+                list($class, $method) = explode('@', $handler, 2);
+
+                // This will cache the controller
+                Http\ControllerPool::get($class, $this->container);
+            }
+        }
     }
 
     /**
@@ -371,24 +421,6 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
         return $this->middlewareManager;
     }
 
-    public function precacheControllers()
-    {
-        $router = $this->container->make(Router::class);
-        $routes = $router->getRoutes();
-
-        foreach ($routes as $route) {
-            $handler = $route[2]; // The handler
-
-            // If it's a controller@method string format
-            if (is_string($handler) && strpos($handler, '@') !== false) {
-                list($class, $method) = explode('@', $handler, 2);
-
-                // This will cache the controller
-                ControllerPool::get($class, $this->container);
-            }
-        }
-    }
-
     /**
      * Handle a route not found error
      *
@@ -399,8 +431,7 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
     {
         return (new Response())
             ->status(404)
-            ->json()
-            ->withJson([
+            ->json([
                 'error' => 'Not Found',
                 'message' => 'The requested resource was not found',
                 'path' => $request->getUri()->getPath()
@@ -419,8 +450,7 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
         return (new Response())
             ->status(405)
             ->withHeader('Allow', implode(', ', $allowedMethods))
-            ->json()
-            ->withJson([
+            ->json([
                 'error' => 'Method Not Allowed',
                 'message' => 'The requested method is not allowed for this resource',
                 'allowed_methods' => $allowedMethods
@@ -467,8 +497,7 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
 
         return (new Response())
             ->status(500)
-            ->json()
-            ->withJson($errorData);
+            ->json($errorData);
     }
 
     /**

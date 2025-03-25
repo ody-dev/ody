@@ -10,13 +10,9 @@
 namespace Ody\DB\Facades;
 
 use Illuminate\Database\Connection;
-use Ody\DB\Eloquent;
+use Ody\DB\ConnectionFactory;
 
 /**
- * // * @method static \Illuminate\Database\Connection connection(string $name = null)
- * // * @method static \Illuminate\Database\Query\Builder table(string $table, string $as = null)
- * // * @method static mixed transaction(\Closure $callback, int $attempts = 1)
- * // * @method static \Illuminate\Database\Query\Builder select(string $query, array $bindings = [], bool $useReadPdo = true)
  * @method static int insert(string $query, array $bindings = [])
  * @method static int update(string $query, array $bindings = [])
  * @method static int delete(string $query, array $bindings = [])
@@ -38,14 +34,16 @@ class DB
     }
 
     /**
-     * Get a database connection instance
+     * Get the database connection instance for the current coroutine.
      *
-     * @param string|null $connection
+     * @param string|null $name
      * @return Connection
      */
-    public static function connection($connection = null)
+    public static function connection($name = null)
     {
-        return Eloquent::getCapsule()->getConnection($connection);
+        // This will always return the same connection for this coroutine
+        $config = config('database.environments')[config('app.environment', 'local')];
+        return ConnectionFactory::make($config, $name ?: 'default');
     }
 
     /**
@@ -84,5 +82,20 @@ class DB
     public static function transaction(\Closure $callback, $attempts = 1)
     {
         return static::connection()->transaction($callback, $attempts);
+    }
+
+    public static function beginTransaction(): void
+    {
+        static::connection()->beginTransaction();
+    }
+
+    public static function commit(): void
+    {
+        static::connection()->commit();
+    }
+
+    public static function rollback(): void
+    {
+        static::connection()->rollBack();
     }
 }

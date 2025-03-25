@@ -85,6 +85,11 @@ class MiddlewareRegistry
     protected array $cacheHits = [];
 
     /**
+     * @var array
+     */
+    protected array $reflectionCache = [];
+
+    /**
      * Constructor
      *
      * @param Container $container
@@ -118,11 +123,6 @@ class MiddlewareRegistry
         }
 
         $this->routes[$routeKey][] = $middleware;
-
-        $this->logger->debug("Registered route middleware", [
-            'method' => $method,
-            'path' => $path
-        ]);
 
         return $this;
     }
@@ -435,24 +435,42 @@ class MiddlewareRegistry
      */
     protected function createInstanceWithParameters(string $className, array $parameters): object
     {
-        $reflectionClass = new \ReflectionClass($className);
-
-        if (!$reflectionClass->isInstantiable()) {
-            throw new \RuntimeException("Class $className is not instantiable");
+        if (empty($parameters) && $this->container->has($className)) {
+            try {
+                return $this->container->make($className);
+            } catch (\Throwable $e) {
+                $this->logger->debug("Container couldn't resolve {$className}, falling back to reflection: {$e->getMessage()}");
+                // Fall through to reflection-based instantiation
+            }
         }
 
-        $constructor = $reflectionClass->getConstructor();
+        if (!isset($this->reflectionCache[$className])) {
+            $this->reflectionCache[$className] = [
+                'class' => new \ReflectionClass($className),
+                'constructor' => null,
+                'parameters' => []
+            ];
+
+            // Cache constructor and parameters
+            $constructor = $this->reflectionCache[$className]['class']->getConstructor();
+            $this->reflectionCache[$className]['constructor'] = $constructor;
+
+            if ($constructor) {
+                $this->reflectionCache[$className]['parameters'] = $constructor->getParameters();
+            }
+        }
+
+        $reflectionClass = $this->reflectionCache[$className]['class'];
+        $constructor = $this->reflectionCache[$className]['constructor'];
+        $constructorParams = $this->reflectionCache[$className]['parameters'];
 
         // If no constructor, create instance directly
         if ($constructor === null) {
             return new $className();
         }
 
-        // Get constructor parameters
-        $constructorParams = $constructor->getParameters();
         $resolvedParams = [];
 
-        // Resolve each parameter
         foreach ($constructorParams as $param) {
             $paramName = $param->getName();
 
@@ -462,13 +480,19 @@ class MiddlewareRegistry
                 continue;
             }
 
-            // Otherwise try to resolve from container
             $paramType = $param->getType();
             if ($paramType !== null && !$paramType->isBuiltin()) {
                 $typeName = $paramType->getName();
 
+                // Try to resolve from container
                 if ($this->container->has($typeName)) {
                     $resolvedParams[] = $this->container->make($typeName);
+                    continue;
+                }
+
+                // Special handling for common interfaces with known bindings
+                if ($typeName === LoggerInterface::class && $this->container->has('logger')) {
+                    $resolvedParams[] = $this->container->make('logger');
                     continue;
                 }
             }
@@ -479,13 +503,23 @@ class MiddlewareRegistry
                 continue;
             }
 
-            // If we can't resolve the parameter, log and throw exception
-            $this->logger->error("Cannot resolve parameter '$paramName' for class $className");
-            throw new \RuntimeException("Cannot resolve parameter '$paramName' for class $className");
+            // Cannot resolve parameter
+            $this->logger->error("Cannot resolve parameter '{$paramName}' for class {$className}");
+            throw new \RuntimeException("Cannot resolve parameter '{$paramName}' for class {$className}");
         }
 
         // Create instance with resolved parameters
         return $reflectionClass->newInstanceArgs($resolvedParams);
+    }
+
+    /**
+     * Clear reflection caches to free memory
+     *
+     * @return void
+     */
+    public function clearReflectionCache(): void
+    {
+        $this->reflectionCache = [];
     }
 
     /**
@@ -578,10 +612,6 @@ class MiddlewareRegistry
 
         // Cache the result
         $this->methodCache[$methodKey] = $combinedMiddleware;
-
-        $this->logger->debug("Resolved middleware for {$methodKey}", [
-            'count' => count($combinedMiddleware)
-        ]);
 
         return $combinedMiddleware;
     }

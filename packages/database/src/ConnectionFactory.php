@@ -10,7 +10,6 @@
 namespace Ody\DB;
 
 use Ody\DB\ConnectionPool\ConnectionPoolAdapter;
-use Swoole\Coroutine;
 
 class ConnectionFactory
 {
@@ -26,7 +25,12 @@ class ConnectionFactory
      *
      * @var bool
      */
-    protected static $registeredShutdown = false;
+    protected static bool $registeredShutdown = false;
+
+    /**
+     * @var array
+     */
+    protected static array $coroutineConnections = [];
 
     /**
      * Create a new connection instance based on the configuration.
@@ -35,35 +39,24 @@ class ConnectionFactory
      * @param string $name
      * @return \Ody\DB\MySqlConnection
      */
+    /**
+     * Create a new connection instance based on the configuration.
+     */
     public static function make(array $config, string $name = 'default')
     {
-        logger()->debug("ConnectionFactory::make()");
-
-        // Create or get the pool for this connection
-        $pool = self::getPool($config, $name);
+        // Initialize the pool if needed
+        ConnectionManager::initPool($config, $name);
 
         // Get a connection from the pool
-        $pdo = $pool->borrow();
+        $pdo = ConnectionManager::getConnection($name);
 
-        // Create the connection instance
-        $connection = new MySqlConnection(
+        // Create the Eloquent connection
+        return new MySqlConnection(
             $pdo,
             $config['database'] ?? $config['db_name'] ?? '',
             $config['prefix'] ?? '',
             $config
         );
-
-        // Set the pool adapter on the connection
-        $connection->setPoolAdapter($pool);
-
-        // Set up deferred cleanup in the current coroutine
-        if (Coroutine::getCid() >= 0) {
-            Coroutine::defer(function () use ($connection) {
-                $connection->disconnect();
-            });
-        }
-
-        return $connection;
     }
 
     /**
@@ -85,22 +78,29 @@ class ConnectionFactory
 
         // Only create the pool if it doesn't exist
         if (!isset(self::$pools[$name])) {
-            logger()->info("Creating connection pool for '$name'");
+            $lock = new \Swoole\Lock(SWOOLE_MUTEX);
+            $lock->lock();
 
-            $poolSize = $config['pool_size'] ?? 32;
+            try {
+                logger()->info("Creating connection pool for '$name'");
 
-            // Make sure the config has all the required keys for the adapter
-            $adapterConfig = [
-                'host' => $config['host'] ?? 'localhost',
-                'port' => $config['port'] ?? 3306,
-                'db_name' => $config['database'] ?? $config['db_name'] ?? '',
-                'charset' => $config['charset'] ?? 'utf8mb4',
-                'username' => $config['username'] ?? '',
-                'password' => $config['password'] ?? '',
-                'options' => $config['options'] ?? [],
-            ];
+                $poolSize = $config['pool_size'] ?? 32;
 
-            self::$pools[$name] = new ConnectionPoolAdapter($adapterConfig, $poolSize);
+                // Make sure the config has all the required keys for the adapter
+                $adapterConfig = [
+                    'host' => $config['host'] ?? 'localhost',
+                    'port' => $config['port'] ?? 3306,
+                    'db_name' => $config['database'] ?? $config['db_name'] ?? '',
+                    'charset' => $config['charset'] ?? 'utf8mb4',
+                    'username' => $config['username'] ?? '',
+                    'password' => $config['password'] ?? '',
+                    'options' => $config['options'] ?? [],
+                ];
+
+                self::$pools[$name] = new ConnectionPoolAdapter($adapterConfig, $poolSize);
+            } finally {
+                $lock->unlock();
+            }
         } else {
             logger()->debug("Reusing existing connection pool for '$name'");
         }

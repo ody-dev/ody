@@ -128,17 +128,15 @@ class MySqlConnection extends Connection
      */
     public function select($query, $bindings = [], $useReadPdo = true)
     {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
+        $pdo = ConnectionManager::getConnection();
+
+        return $this->run($query, $bindings, function ($query, $bindings) use ($pdo) {
             if ($this->pretending()) {
                 return [];
             }
 
-            // For select statements, we'll simply execute the query and return an array
-            // of the database result set. Each element in the array will be a single
-            // row from the database table, and will either be an array or objects.
-            $statement = $this->prepared(
-                $this->getPdoForSelect($useReadPdo)->prepare($query)
-            );
+            // Use the freshly borrowed connection
+            $statement = $this->prepared($pdo->prepare($query));
 
             $this->bindValues($statement, $this->prepareBindings($bindings));
 
@@ -155,14 +153,12 @@ class MySqlConnection extends Connection
      */
     public function disconnect()
     {
-        // If we have a pool adapter, return the PDO to the pool
         if ($this->poolAdapter && $this->pdo) {
-            // Don't directly return the PDO, let the PDO be handled by the garbage collector
-            // This avoids the type error with PDOProxy
+            $pdo = $this->pdo;
             $this->pdo = null;
             $this->readPdo = null;
+            $this->poolAdapter->return($pdo);  // Explicitly return the PDO object
         } else {
-            // Default disconnect behavior
             $this->setPdo(null)->setReadPdo(null);
         }
     }
@@ -181,17 +177,6 @@ class MySqlConnection extends Connection
             } else {
                 $this->reconnect();
             }
-        }
-    }
-
-    /**
-     * Return the connection to the pool when the coroutine ends.
-     */
-    public function __destruct()
-    {
-        // Ensure connection is returned to pool
-        if ($this->pdo !== null) {
-            $this->disconnect();
         }
     }
 }

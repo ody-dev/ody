@@ -121,17 +121,15 @@ class MySqlConnection extends Connection
      */
     public function select($query, $bindings = [], $useReadPdo = true)
     {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
+        $pdo = ConnectionManager::getConnection();
+
+        return $this->run($query, $bindings, function ($query, $bindings) use ($pdo) {
             if ($this->pretending()) {
                 return [];
             }
 
-            // For select statements, we'll simply execute the query and return an array
-            // of the database result set. Each element in the array will be a single
-            // row from the database table, and will either be an array or objects.
-            $statement = $this->prepared(
-                $this->getPdoForSelect($useReadPdo)->prepare($query)
-            );
+            // Use the freshly borrowed connection
+            $statement = $this->prepared($pdo->prepare($query));
 
             $this->bindValues($statement, $this->prepareBindings($bindings));
 
@@ -172,50 +170,6 @@ class MySqlConnection extends Connection
             } else {
                 $this->reconnect();
             }
-        }
-    }
-
-    /**
-     * Execute a Closure within a transaction.
-     *
-     * @param \Closure $callback
-     * @param int $attempts
-     * @return mixed
-     *
-     * @throws \Throwable
-     */
-    public function transaction(\Closure $callback, $attempts = 1)
-    {
-        for ($currentAttempt = 1; $currentAttempt <= $attempts; $currentAttempt++) {
-            $this->beginTransaction();
-
-            try {
-                $result = $callback($this);
-
-                $this->commit();
-
-                return $result;
-            } catch (\Throwable $e) {
-                $this->rollBack();
-
-                if ($currentAttempt < $attempts &&
-                    ($this->causedByLostConnection($e) || $this->causedByDeadlock($e))) {
-                    continue;
-                }
-
-                throw $e;
-            }
-        }
-    }
-
-    /**
-     * Return the connection to the pool when the coroutine ends.
-     */
-    public function __destruct()
-    {
-        // Ensure connection is returned to pool
-        if ($this->pdo !== null) {
-            $this->disconnect();
         }
     }
 }

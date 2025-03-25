@@ -32,53 +32,24 @@ class ConnectionFactory
      * @param string $name
      * @return \Ody\DB\MySqlConnection
      */
+    /**
+     * Create a new connection instance based on the configuration.
+     */
     public static function make(array $config, string $name = 'default')
     {
-        $cid = \Swoole\Coroutine::getCid();
-
-        // If we already have a connection for this coroutine, return it
-        if (isset(static::$coroutineConnections[$cid][$name])) {
-            return static::$coroutineConnections[$cid][$name];
-        }
-
-        // Create or get the pool for this connection
-        $pool = self::getPool($config, $name);
+        // Initialize the pool if needed
+        ConnectionManager::initPool($config, $name);
 
         // Get a connection from the pool
-        $pdo = $pool->borrow();
+        $pdo = ConnectionManager::getConnection($name);
 
-        // Create the connection instance
-        $connection = new MySqlConnection(
+        // Create the Eloquent connection
+        return new MySqlConnection(
             $pdo,
             $config['database'] ?? $config['db_name'] ?? '',
             $config['prefix'] ?? '',
             $config
         );
-
-        // Set the pool adapter on the connection
-        $connection->setPoolAdapter($pool);
-
-        // Store it for this coroutine
-        static::$coroutineConnections[$cid][$name] = $connection;
-
-        // Set up deferred cleanup when the coroutine ends
-        if (!isset(static::$coroutineConnections[$cid]['__cleanup_registered'])) {
-            \Swoole\Coroutine::defer(function () use ($cid) {
-                // Disconnect all connections for this coroutine
-                if (isset(static::$coroutineConnections[$cid])) {
-                    foreach (static::$coroutineConnections[$cid] as $conn) {
-                        if ($conn instanceof Connection) {
-                            $conn->disconnect();
-                        }
-                    }
-                    unset(static::$coroutineConnections[$cid]);
-                }
-            });
-
-            static::$coroutineConnections[$cid]['__cleanup_registered'] = true;
-        }
-
-        return $connection;
     }
 
     /**

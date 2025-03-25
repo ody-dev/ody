@@ -113,7 +113,7 @@ class ConnectionManager
     {
         if (!isset(self::$workerId)) {
             self::$workerId = getmypid() . '-' . substr(md5(uniqid()), 0, 8);
-            logger()->info("Initializing worker with ID: " . self::$workerId);
+            logger()->debug("Initializing pool worker with ID: " . self::$workerId);
         }
     }
 

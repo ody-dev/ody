@@ -7,9 +7,8 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\DB\Providers;
+namespace Ody\DB\Doctrine\Providers;
 
-use Doctrine\Common\Cache\ArrayCache;
 use Ody\DB\Doctrine\EntityManagerFactory;
 use Ody\DB\Doctrine\Facades\ORM;
 use Ody\Foundation\Providers\ServiceProvider;
@@ -64,8 +63,7 @@ class DoctrineORMServiceProvider extends ServiceProvider
     {
         // Register Doctrine ORM console commands
         $this->registerCommands([
-            // Add your Doctrine ORM command classes here
-            // These will likely include schema creation, validation, etc.
+            // TODO: implement commands
         ]);
     }
 }

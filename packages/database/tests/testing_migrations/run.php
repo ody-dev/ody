@@ -1,4 +1,11 @@
 <?php
+/*
+ *  This file is part of ODY framework.
+ *
+ *  @link     https://ody.dev
+ *  @document https://ody.dev/docs
+ *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
+ */
 
 use Ody\DB\Migrations\Config\Config;
 use Ody\DB\Migrations\Database\Adapter\AdapterFactory;

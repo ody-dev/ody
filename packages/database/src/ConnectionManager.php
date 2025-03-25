@@ -1,12 +1,23 @@
 <?php
+declare(strict_types=1);
+
+/*
+ *  This file is part of ODY framework.
+ *
+ *  @link     https://ody.dev
+ *  @document https://ody.dev/docs
+ *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
+ */
 
 namespace Ody\DB;
 
-use Allsilaevex\ConnectionPool\ConnectionFactories\PDOConnectionFactory;
-use Allsilaevex\ConnectionPool\ConnectionPoolFactory;
-use Allsilaevex\Pool\PoolInterface;
+use Ody\DB\ConnectionPool\ConnectionPoolFactory;
+use Ody\DB\ConnectionPool\PDOConnectionFactory;
+use Ody\DB\ConnectionPool\Pool\PoolInterface;
 use PDO;
+use RuntimeException;
 use Swoole\Coroutine;
+use Throwable;
 
 class ConnectionManager
 {
@@ -15,10 +26,17 @@ class ConnectionManager
      */
     protected static array $pools = [];
 
+    /**
+     * @var string
+     */
     protected static string $workerId;
 
     /**
      * Initialize a connection pool for the given configuration
+     *
+     * @param array $config
+     * @param string $name
+     * @return PoolInterface
      */
     public static function initPool(array $config, string $name = 'default'): PoolInterface
     {
@@ -38,9 +56,7 @@ class ConnectionManager
         );
 
         // Calculate optimal pool size based on worker settings
-        $connectionsPerWorker = 20; // Adjust this number
-
-//        logger()->info("Initializing connection pool for worker $workerId with $connectionsPerWorker connections");
+        $connectionsPerWorker = 10; // Adjust this number
 
         // Create a pool with multiple connections per worker
         $poolFactory = ConnectionPoolFactory::create(
@@ -57,8 +73,7 @@ class ConnectionManager
             )
         );
 
-        // Configure the pool - adjusted for higher concurrency
-        $poolFactory->setMinimumIdle(max(2, $connectionsPerWorker / 2)); // Keep at least half connections idle
+        $poolFactory->setMinimumIdle(max(2, $connectionsPerWorker / 2));
         $poolFactory->setIdleTimeoutSec($config['idle_timeout'] ?? 60.0);
         $poolFactory->setMaxLifetimeSec($config['max_lifetime'] ?? 3600.0);
         $poolFactory->setBorrowingTimeoutSec($config['borrowing_timeout'] ?? 0.5);
@@ -70,22 +85,18 @@ class ConnectionManager
         // Add a connection checker to verify connections aren't in a transaction
         $poolFactory->addConnectionChecker(function (PDO $connection): bool {
             try {
-                // Check if a transaction is active
                 return !$connection->inTransaction();
-            } catch (\Throwable) {
-                // If any error occurs, the connection is considered bad
+            } catch (Throwable) {
                 return false;
             }
         });
 
-        // Create the pool with a unique name for this worker
-        $poolName = "$name-" . self::$workerId;
-        $pool = $poolFactory->instantiate($poolName);
+        $pool = $poolFactory->instantiate(
+            "$name-" . self::$workerId
+        );
 
-        // Store it for future use
         self::$pools[$name] = $pool;
 
-        // Register shutdown handler if not already registered
         register_shutdown_function(function () {
             self::closeAll();
         });
@@ -94,15 +105,15 @@ class ConnectionManager
     }
 
     /**
-     * Initialize the worker ID if not already set
+     * Set the worker ID if not already set
+     *
+     * @return void
      */
     protected static function initWorkerId(): void
     {
         if (!isset(self::$workerId)) {
-            // Create a unique ID for this worker process
-            // Uses process ID plus a random value to ensure uniqueness
             self::$workerId = getmypid() . '-' . substr(md5(uniqid()), 0, 8);
-            logger()->info("Initializing worker with ID: " . self::$workerId);
+            logger()->debug("Initializing pool worker with ID: " . self::$workerId);
         }
     }
 
@@ -119,22 +130,26 @@ class ConnectionManager
 
     /**
      * Get a PDO connection from the pool
+     *
+     * @param string $name
+     * @return PDO
+     * @throws ConnectionPool\Pool\Exceptions\BorrowTimeoutException
      */
     public static function getConnection(string $name = 'default'): PDO
     {
         self::initWorkerId();
 
         $cid = Coroutine::getCid();
-        logger()->info("Getting connection for coroutine ID: $cid in pool: $name (worker: " . self::$workerId . ")");
+        logger()->debug("Getting connection for coroutine ID: $cid in pool: $name (worker: " . self::$workerId . ")");
 
         $pool = self::$pools[$name] ?? null;
 
         if (!$pool) {
-            throw new \RuntimeException("Connection pool '$name' has not been initialized");
+            throw new RuntimeException("Connection pool '$name' has not been initialized");
         }
 
         $conn = $pool->borrow();
-        logger()->info("Borrowed connection from pool: $name, stats: " . json_encode($pool->stats()));
+        logger()->debug("Borrowed connection from pool: $name, stats: " . json_encode($pool->stats()));
 
         return $conn;
     }

@@ -9,8 +9,8 @@
         }
     ],
     "require": {
-        "allsilaevex/swoole-connection-pool": "^v0.5.1",
         "cocur/slugify": "^4.6",
+        "doctrine/dbal": "^4.2.0",
         "dragonmantank/cron-expression": "^2.2",
         "ext-pdo": "*",
         "ext-swoole": "^6.0",

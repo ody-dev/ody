@@ -6,7 +6,7 @@
   "authors": [
     {
       "name": "Ilyas Deckers",
-      "email": "deckersilyas@gmail.com"
+      "email": "ilyas@ody.dev"
     }
   ],
   "require": {
@@ -14,7 +14,7 @@
     "ext-pdo": "*",
     "ext-swoole": "^6.0",
     "illuminate/database": "^11.43",
-    "allsilaevex/swoole-connection-pool": "^v0.5.1",
+    "doctrine/dbal": "^4.2.0",
     "psr/log": "^3.0"
   },
   "require-dev": {

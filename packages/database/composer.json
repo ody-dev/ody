@@ -14,7 +14,9 @@
     "ext-pdo": "*",
     "ext-swoole": "^6.0",
     "illuminate/database": "^11.43",
+    "doctrine/orm": "^3.3.0",
     "doctrine/dbal": "^4.2.0",
+    "symfony/cache": "^v7.2.0",
     "psr/log": "^3.0"
   },
   "require-dev": {

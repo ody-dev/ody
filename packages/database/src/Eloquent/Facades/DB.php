@@ -7,10 +7,10 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\DB\Facades;
+namespace Ody\DB\Eloquent\Facades;
 
 use Illuminate\Database\Connection;
-use Ody\DB\ConnectionFactory;
+use Ody\DB\Eloquent\ConnectionFactory;
 
 /**
  * @method static int insert(string $query, array $bindings = [])
@@ -66,7 +66,7 @@ class DB
      * @param bool $useReadPdo
      * @return array
      */
-    public static function select($query, $bindings = [], $useReadPdo = true)
+    public static function select(string $query, array $bindings = [], bool $useReadPdo = true): array
     {
         return static::connection()->select($query, $bindings, $useReadPdo);
     }

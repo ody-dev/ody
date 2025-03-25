@@ -1,9 +1,16 @@
 <?php
+/*
+ *  This file is part of ODY framework.
+ *
+ *  @link     https://ody.dev
+ *  @document https://ody.dev/docs
+ *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
+ */
 
-namespace Ody\DB\Facades;
+namespace Ody\DB\Eloquent\Facades;
 
 use Illuminate\Support\Facades\DB as LaravelDB;
-use Ody\DB\Facades\DB as OdyDB;
+use Ody\DB\Eloquent\Facades\DB as OdyDB;
 use function Swoole\Coroutine\run;
 
 /**
@@ -80,7 +87,7 @@ class DBFacadeTest
         // Test connection method
         $this->testCase("$label: Connection access", function () use ($dbClass) {
             $connection = $dbClass::connection();
-            return $connection instanceof \Ody\DB\Connection || $connection instanceof \Illuminate\Database\Connection;
+            return $connection instanceof \Ody\DB\Eloquent\Connection || $connection instanceof \Illuminate\Database\Connection;
         });
 
         // Test table query
@@ -238,7 +245,7 @@ class DBFacadeTest
             $connection1 = $dbClass::connection();
 
             // The connection should be associated with this coroutine
-            return $cid > 0 && $connection1 instanceof \Ody\DB\Connection;
+            return $cid > 0 && $connection1 instanceof \Ody\DB\Eloquent\Connection;
         });
     }
 

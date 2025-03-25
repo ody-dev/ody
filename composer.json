@@ -10,6 +10,7 @@
     ],
     "require": {
         "cocur/slugify": "^4.6",
+        "doctrine/dbal": "^4.2.0",
         "dragonmantank/cron-expression": "^2.2",
         "ext-pdo": "*",
         "ext-swoole": "^6.0",

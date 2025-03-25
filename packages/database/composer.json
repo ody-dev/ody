@@ -14,7 +14,6 @@
     "ext-pdo": "*",
     "ext-swoole": "^6.0",
     "illuminate/database": "^11.43",
-    "allsilaevex/swoole-connection-pool": "^v0.5.1",
     "psr/log": "^3.0"
   },
   "require-dev": {

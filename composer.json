@@ -64,7 +64,7 @@
         "ody/foundation": "self.version",
         "ody/influxdb": "self.version",
         "ody/logger": "self.version",
-        "ody/pool": "self.version",
+        "ody/connection-pool": "self.version",
         "ody/process": "self.version",
         "ody/scheduler": "self.version",
         "ody/server": "self.version",
@@ -78,7 +78,7 @@
     "autoload": {
         "psr-4": {
             "Ody\\Auth\\": "packages/auth/src/",
-            "Ody\\ConnectionPool\\": "packages/pool/src/",
+            "Ody\\ConnectionPool\\": "packages/connection-pool/src/",
             "Ody\\Container\\": "packages/container/src/",
             "Ody\\DB\\": "packages/database/src/",
             "Ody\\Foundation\\": "packages/foundation/src/",

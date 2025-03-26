@@ -6,24 +6,45 @@ namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Consumer;
 use Ody\AMQP\Attributes\Producer;
-use PhpAmqpLib\Channel\AMQPChannel;
-use PhpAmqpLib\Connection\AMQPStreamConnection;
+use Ody\Task\TaskManager;
 use PhpAmqpLib\Message\AMQPMessage;
 use ReflectionAttribute;
 use ReflectionClass;
+use Swoole\Coroutine;
 
 class MessageProcessor
 {
     /**
-     * @var array<string, object>
+     * @var array<string, array>
      */
     private array $consumers = [];
 
     /**
-     * @var array<string, object>
+     * @var array<string, array>
      */
     private array $producers = [];
 
+    /**
+     * @var array<string, Producer> Store producer class attributes without instantiating
+     */
+    private array $producerClasses = [];
+
+    /**
+     * @var TaskManager The task manager
+     */
+    private TaskManager $taskManager;
+
+    /**
+     * Constructor
+     */
+    public function __construct(TaskManager $taskManager)
+    {
+        $this->taskManager = $taskManager;
+    }
+
+    /**
+     * Register a consumer
+     */
     public function registerConsumer(object $consumer): void
     {
         $reflection = new ReflectionClass($consumer);
@@ -40,6 +61,9 @@ class MessageProcessor
         ];
     }
 
+    /**
+     * Register a producer
+     */
     public function registerProducer(object $producer): void
     {
         $reflection = new ReflectionClass($producer);
@@ -56,64 +80,177 @@ class MessageProcessor
         ];
     }
 
-    public function startConsumers(array $config, string $poolName = 'default'): void
+    /**
+     * Register a producer class without instantiating it
+     * This is useful for producers that require constructor parameters
+     */
+    public function registerProducerClass(string $producerClass): void
     {
-        $connection = ConnectionManager::getConnection($poolName);
-
-        foreach ($this->consumers as $consumer) {
-            $consumerInstance = $consumer['instance'];
-            $consumerAttribute = $consumer['attribute'];
-
-            if (!$consumerAttribute->enable) {
-                continue;
-            }
-
-            // Start the appropriate number of consumer processes
-            for ($i = 0; $i < $consumerAttribute->nums; $i++) {
-                // Use your existing Task system to process the consumer
-                // This is where your Swoole process/task system integration happens
-                $this->startConsumerProcess($consumerInstance, $consumerAttribute, $connection);
-            }
+        if (!class_exists($producerClass)) {
+            throw new \InvalidArgumentException("Producer class $producerClass does not exist");
         }
-    }
 
-    public function produce(object $producerMessage, string $poolName = 'default'): bool
-    {
-        $connection = ConnectionManager::getConnection($poolName);
-        $channel = $connection->channel();
-
-        $reflection = new ReflectionClass($producerMessage);
+        $reflection = new ReflectionClass($producerClass);
         $attributes = $reflection->getAttributes(Producer::class, ReflectionAttribute::IS_INSTANCEOF);
 
         if (empty($attributes)) {
-            throw new \RuntimeException("Message class must have Producer attribute");
+            throw new \InvalidArgumentException("Class $producerClass does not have the Producer attribute");
         }
 
         $producerAttribute = $attributes[0]->newInstance();
+        $this->producerClasses[$producerClass] = $producerAttribute;
+    }
 
-        // Declare exchange
-        $channel->exchange_declare(
-            $producerAttribute->exchange,
-            $producerAttribute->type,
-            false,
-            true,
-            false
-        );
+    /**
+     * Get all registered consumers
+     */
+    public function getConsumers(): array
+    {
+        return $this->consumers;
+    }
 
-        // Create and publish message
-        $message = new AMQPMessage(
-            json_encode($producerMessage->getPayload()),
-            $producerMessage->getProperties()
-        );
+    /**
+     * Get all registered producers
+     */
+    public function getProducers(): array
+    {
+        return $this->producers;
+    }
 
-        $channel->basic_publish(
-            $message,
-            $producerAttribute->exchange,
-            $producerAttribute->routingKey
-        );
+    /**
+     * Get all registered producer classes
+     */
+    public function getProducerClasses(): array
+    {
+        return $this->producerClasses;
+    }
 
-        $channel->close();
+    /**
+     * Get producer attribute for a class
+     */
+    public function getProducerAttribute(string $producerClass): ?Producer
+    {
+        return $this->producerClasses[$producerClass] ?? null;
+    }
 
-        return true;
+    /**
+     * Produce a message
+     * This method now ensures it's running in a coroutine
+     */
+    public function produce(object $producerMessage, string $poolName = 'default'): bool
+    {
+        // Check if already in a coroutine
+        if (!Coroutine::getCid()) {
+            // If not in a coroutine, create one
+            $result = [false];
+            Coroutine\run(function () use ($producerMessage, $poolName, &$result) {
+                $result[0] = $this->doProduceInCoroutine($producerMessage, $poolName);
+            });
+
+            return $result[0];
+        }
+
+        // Already in a coroutine
+        return $this->doProduceInCoroutine($producerMessage, $poolName);
+    }
+
+    /**
+     * Internal method to produce a message within a coroutine
+     */
+    private function doProduceInCoroutine(object $producerMessage, string $poolName): bool
+    {
+        $connection = null;
+
+        try {
+            $connection = ConnectionManager::getConnection($poolName);
+            $channel = $connection->channel();
+
+            // Get producer attribute
+            $producerAttribute = null;
+            $reflection = new ReflectionClass($producerMessage);
+            $className = $reflection->getName();
+
+            // First check if we have a pre-registered attribute for this class
+            if (isset($this->producerClasses[$className])) {
+                $producerAttribute = $this->producerClasses[$className];
+            } else {
+                // Otherwise, try to get it from the object
+                $attributes = $reflection->getAttributes(Producer::class, ReflectionAttribute::IS_INSTANCEOF);
+                if (!empty($attributes)) {
+                    $producerAttribute = $attributes[0]->newInstance();
+                }
+            }
+
+            if (!$producerAttribute) {
+                throw new \RuntimeException("Message class must have Producer attribute");
+            }
+
+            // Declare exchange
+            $channel->exchange_declare(
+                $producerAttribute->exchange,
+                $producerAttribute->type,
+                false,
+                true,
+                false
+            );
+
+            // Get routing key from attribute or method if specified
+            $routingKey = $producerAttribute->routingKey;
+
+            // Check if the message has a specific routing key
+            $methodAttributes = $reflection->getMethod('__construct')->getAttributes(Attributes\ProduceMessage::class);
+            if (!empty($methodAttributes)) {
+                $methodAttr = $methodAttributes[0]->newInstance();
+                if ($methodAttr->routingKey !== null) {
+                    $routingKey = $methodAttr->routingKey;
+                }
+            }
+
+            // Create and publish message
+            $payload = $producerMessage->getPayload();
+            $properties = $producerMessage->getProperties();
+
+            // Set content type to JSON if not specified
+            if (!isset($properties['content_type'])) {
+                $properties['content_type'] = 'application/json';
+            }
+
+            $message = new AMQPMessage(
+                json_encode($payload),
+                $properties
+            );
+
+            $channel->basic_publish(
+                $message,
+                $producerAttribute->exchange,
+                $routingKey
+            );
+
+            // Close the channel
+            $channel->close();
+
+            // Return the connection to the pool
+            ConnectionManager::returnConnection($connection, $poolName);
+
+            return true;
+        } catch (\Throwable $e) {
+            // Log the error
+            error_log("Error producing AMQP message: " . $e->getMessage());
+
+            // Clean up
+            try {
+                if (isset($channel) && $channel->is_open()) {
+                    $channel->close();
+                }
+
+                if (isset($connection)) {
+                    ConnectionManager::returnConnection($connection, $poolName);
+                }
+            } catch (\Throwable $cleanup) {
+                // Ignore cleanup errors
+            }
+
+            return false;
+        }
     }
 }

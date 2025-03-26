@@ -1,72 +1,163 @@
-# ody-database
+# ODY database module
 
 ⚠️ **IMPORTANT**: This repository is automatically generated from the [ody repo](https://github.com/ody-dev/ody) and is
 read-only.
 
-This is a work in progress, the connection pool not stable at all! Highly experimental!
+A high-performance database integration framework for PHP applications leveraging Swoole's coroutines.
 
-This package implements a custom database connection class that overrides the default Connection class
-of Eloquent. Doing this enables Eloquent to run within a coroutine context and can connect over TCP sockets 
-to a coroutine connection pool.
+## Overview
+
+The ODY Database module provides a connection pool implementation that works with popular PHP ORM solutions. It's
+designed to maximize performance in Swoole environments by efficiently managing database connections across coroutines.
+
+## Features
+
+- Connection pooling with Swoole coroutine awareness
+- Support for Eloquent ORM, Doctrine ORM, and standalone DBAL
+- Automatic connection binding to coroutines
+- Built-in connection lifecycle management
+- Connection health checks and leak detection
+- Configurable pool size and connection settings
 
 ## Installation
-```php
+
+```bash
 composer require ody/database
 ```
 
-## Usage
-### Register the package in ODY
-Add `DatabaseServiceProvider` to `config/app.php`
+### Eloquent
 
-```php
-'providers' => [
-    // ...
-    \Ody\DB\ServiceProviders\DatabaseServiceProvider::class,
-    // ...
-
-]
+```bash
+composer require illuminate/database
 ```
 
-### Edit config files
+### Doctrine ORM
 
-1. Add/edit the `config/database.php` & `config/pool.php` file.
-2. When running a connection pool instance set `pool.enabled` to true and edit the host and port.
-3. Run `php bin/connection_pool.php` to start a simple TCP server that fires up a MySQL connection pool.
-
-To run Eloquent in standard mode, simply set `pool.enabled` to `false`. This is the advised method as the connection 
-pool still are in an experimental stage.
-
-## Using Eloquent
-
-Refer to the Laravel documentation, most methods should work as we're used to. But since ODY is in active development,
-issues may arise. Open an issue on GitHub and we'll look into it asap.
-
-## Benchmarks
-
-The current benchmarks are insanely good, 6k to 8k queries per second while firing off queries asynchronously, 10
-coroutines with each performing 2000 queries. This was run through the connection pool with standard settings.
-
-`$this->userRepository->getAll();` eager loads relationships on top of the base `select * from users;` query.
-
-```php
-$n1 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n2 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n3 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n4 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n5 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n6 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n7 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n8 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n9 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-$n10 = async(function () { for ($k = 0 ; $k < 2000; $k++){ $this->userRepository->getAll(); } });
-
-$n = \Ody\Futures\join([$n1, $n2, $n3, $n4, $n5, $n6, $n7, $n8, $n9, $n10]);
-
-$n->await();
+```bash
+composer require doctrine/orm doctrine/dbal symfony/cache
 ```
 
-## Footnotes
+### DBAL
 
-Special thanks to:
-* Taylor Otwell/Laravel for providing Eloquent
-* allsilaevex (https://github.com/allsilaevex) for showing how to efficiently build a connection pool with Swoole
+```bash
+composer require doctrine/dbal
+```
+
+## Basic Usage
+
+### Configuration
+
+Define your database configuration:
+
+```php
+// config/database.php
+return [
+    'environments' => [
+        'local' => [
+            'driver' => 'mysql',
+            'host' => 'localhost',
+            'port' => 3306,
+            'database' => 'your_database',
+            'username' => 'your_username',
+            'password' => 'your_password',
+            'charset' => 'utf8mb4',
+        ],
+    ],
+    'connection_pool_enabled' => true,
+    'pool_size' => 10,
+];
+```
+
+### Using with Eloquent
+
+```php
+use Ody\DB\Eloquent\Facades\DB;
+use App\Models\User;
+
+// Initialize Eloquent
+Ody\DB\Eloquent\Eloquent::boot(config('database.environments')['local']);
+
+// Using the Facade
+$users = DB::table('users')->where('active', 1)->get();
+
+// Using Eloquent models
+$user = User::find(1);
+```
+
+### Using with Doctrine ORM
+
+```php
+use Ody\DB\Doctrine\Facades\ORM;
+use App\Entities\User;
+
+// Get entity manager
+$entityManager = ORM::entityManager();
+
+// Working with entities
+$user = $entityManager->find(User::class, 1);
+$entityManager->persist($user);
+$entityManager->flush();
+```
+
+### Using with Doctrine DBAL
+
+```php
+use Ody\DB\Doctrine\Facades\DBAL;
+
+// Execute queries
+$users = DBAL::fetchAllAssociative('SELECT * FROM users WHERE active = ?', [1]);
+
+// Using query builder
+$queryBuilder = DBAL::createQueryBuilder();
+$result = $queryBuilder
+    ->select('u.*')
+    ->from('users', 'u')
+    ->where('u.active = :active')
+    ->setParameter('active', 1)
+    ->executeQuery()
+    ->fetchAllAssociative();
+```
+
+### Direct Connection Pool Access
+
+```php
+use Ody\DB\ConnectionManager;
+
+// Initialize the pool
+ConnectionManager::initPool($config);
+
+// Get a connection from the pool
+$connection = ConnectionManager::getConnection();
+
+// Use the PDO connection
+$stmt = $connection->prepare('SELECT * FROM users WHERE id = ?');
+$stmt->execute([1]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// No need to return the connection - it's automatically returned when the coroutine ends
+```
+
+## Advanced Configuration
+
+The connection pool can be finely tuned with options for:
+
+- Minimum idle connections
+- Idle timeout
+- Maximum connection lifetime
+- Borrowing timeout
+- Connection health checks
+- Leak detection threshold
+
+For detailed documentation on advanced configuration and usage, refer to the full documentation.
+
+## Performance Benefits
+
+- Connections are reused across requests, eliminating the overhead of establishing new connections
+- Automatic binding to coroutines ensures connection safety in concurrent environments
+- Connection health checks prevent using broken connections
+- Leak detection helps identify and fix connection leaks
+- Configurable pool size matches your application needs and server resources
+
+## License
+
+This package is licensed under the [MIT License](https://github.com/ody-dev/ody-foundation/blob/master/LICENSE).

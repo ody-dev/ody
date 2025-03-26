@@ -17,8 +17,8 @@
 
 namespace Ody\DB\Eloquent;
 
+use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use Ody\DB\ConnectionManager;
-use Ody\DB\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 
 class ConnectionFactory
 {

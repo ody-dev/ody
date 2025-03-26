@@ -11,8 +11,8 @@ namespace Ody\DB\Doctrine;
 
 use Doctrine\DBAL\Driver\AbstractMySQLDriver;
 use Doctrine\DBAL\Driver\Connection;
+use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use Ody\DB\ConnectionManager;
-use Ody\DB\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use PDO;
 
 class DBALMysQLDriver extends AbstractMySQLDriver

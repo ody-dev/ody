@@ -28,6 +28,7 @@ jobs:
           - { name: "swoole", path: "packages/swoole" }
           - { name: "task", path: "packages/task" }
           - { name: "websocket", path: "packages/websocket" }
+          - { name: "connection-pool", path: "packages/connection-pool" }
 
     steps:
       - uses: actions/checkout@v3

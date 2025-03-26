@@ -2,13 +2,13 @@
 
 namespace Ody\AMQP\Providers;
 
+//use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPManager;
 use Ody\AMQP\ProducerService;
 use Ody\Foundation\Providers\ServiceProvider;
 use Ody\Process\ProcessManager;
 use Ody\Support\Config;
-use Ody\Support\ServerEvents;
 use Ody\Task\TaskManager;
 
 class AMQPServiceProvider extends ServiceProvider

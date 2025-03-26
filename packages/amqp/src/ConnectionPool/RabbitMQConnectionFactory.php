@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ody\AMQP\ConnectionPool;
 
-use Ody\DB\ConnectionPool\Pool\PoolItemFactoryInterface;
+use Ody\ConnectionPool\Pool\PoolItemFactoryInterface;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 /**

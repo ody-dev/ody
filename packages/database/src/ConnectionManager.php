@@ -11,9 +11,9 @@ declare(strict_types=1);
 
 namespace Ody\DB;
 
-use Ody\DB\ConnectionPool\ConnectionPoolFactory;
-use Ody\DB\ConnectionPool\PDOConnectionFactory;
-use Ody\DB\ConnectionPool\Pool\PoolInterface;
+use Ody\ConnectionPool\ConnectionPoolFactory;
+use Ody\ConnectionPool\PDOConnectionFactory;
+use Ody\ConnectionPool\Pool\PoolInterface;
 use PDO;
 use RuntimeException;
 use Swoole\Coroutine;

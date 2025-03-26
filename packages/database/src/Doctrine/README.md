@@ -2,6 +2,8 @@
 
 ## Installation
 
+In the ody/framework GiHub repository a doctrine branch exists fully configured to work with doctrine!
+
 1. Install via Composer:
 
 ```bash

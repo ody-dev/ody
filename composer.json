@@ -58,13 +58,14 @@
         "vimeo/psalm": "^6.8.8"
     },
     "replace": {
+      "ody/amqp": "self.version",
         "ody/auth": "self.version",
+      "ody/connection-pool": "self.version",
         "ody/container": "self.version",
         "ody/database": "self.version",
         "ody/foundation": "self.version",
         "ody/influxdb": "self.version",
         "ody/logger": "self.version",
-        "ody/connection-pool": "self.version",
         "ody/process": "self.version",
         "ody/scheduler": "self.version",
         "ody/server": "self.version",
@@ -77,6 +78,7 @@
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
+          "ODY\\AMQP\\": "packages/amqp/src/",
             "Ody\\Auth\\": "packages/auth/src/",
             "Ody\\ConnectionPool\\": "packages/connection-pool/src/",
             "Ody\\Container\\": "packages/container/src/",

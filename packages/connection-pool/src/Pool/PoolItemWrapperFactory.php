@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool;
+namespace Ody\ConnectionPool\Pool;
 
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
 
 /**
  * @template TItem of object

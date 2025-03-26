@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool\Hook;
+namespace Ody\ConnectionPool\Pool\Hook;
 
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperInterface;
+use Ody\ConnectionPool\Pool\PoolItemWrapperInterface;
 
 /**
  * @template TItem of object

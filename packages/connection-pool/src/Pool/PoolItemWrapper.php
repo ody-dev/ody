@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool;
+namespace Ody\ConnectionPool\Pool;
 
 use LogicException;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
 use Swoole\Coroutine\Channel;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
-
 use function hrtime;
 use function uniqid;
 

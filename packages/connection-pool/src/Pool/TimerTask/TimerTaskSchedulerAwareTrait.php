@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool\TimerTask;
+namespace Ody\ConnectionPool\Pool\TimerTask;
 
 use WeakReference;
 

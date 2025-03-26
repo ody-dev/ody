@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Tasks;
+namespace Ody\ConnectionPool\Tasks;
 
-use Throwable;
+use Ody\ConnectionPool\Pool\PoolControlInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerAwareTrait;
 use Psr\Log\LoggerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolControlInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerAwareTrait;
-
+use Throwable;
 use function hrtime;
 use function is_null;
 

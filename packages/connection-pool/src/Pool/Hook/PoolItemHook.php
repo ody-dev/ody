@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool\Hook;
+namespace Ody\ConnectionPool\Pool\Hook;
 
 enum PoolItemHook: string
 {

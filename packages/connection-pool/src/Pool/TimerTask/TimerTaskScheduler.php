@@ -2,17 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool\TimerTask;
+namespace Ody\ConnectionPool\Pool\TimerTask;
 
+use LogicException;
+use Ody\ConnectionPool\Pool\Exceptions\TimerTickScheduleException;
 use Swoole\Timer;
 use WeakReference;
-use LogicException;
-use Ody\ConnectionPool\ConnectionPool\Pool\Exceptions\TimerTickScheduleException;
-
 use function count;
-use function round;
 use function is_null;
 use function method_exists;
+use function round;
 
 /**
  * @template TRunner of object
@@ -36,7 +35,7 @@ class TimerTaskScheduler implements TimerTaskSchedulerInterface
         $this->timerTaskIds = [];
 
         foreach ($this->timerTasks as $timerTask) {
-            /** @see \Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerAwareTrait */
+            /** @see \Ody\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerAwareTrait */
             if (method_exists($timerTask, 'setTimerTaskScheduler')) {
                 $timerTask->setTimerTaskScheduler($this);
             }

@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Tasks;
+namespace Ody\ConnectionPool\Tasks;
 
+use Ody\ConnectionPool\Pool\PoolControlInterface;
+use Ody\ConnectionPool\Pool\PoolItemState;
+use Ody\ConnectionPool\Pool\PoolItemWrapperInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
 use Psr\Log\LoggerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemState;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolControlInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
-
 use function is_null;
 
 /**

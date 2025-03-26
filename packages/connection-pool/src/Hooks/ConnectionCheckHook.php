@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Hooks;
+namespace Ody\ConnectionPool\Hooks;
 
+use Ody\ConnectionPool\Pool\Exceptions\PoolItemCreationException;
+use Ody\ConnectionPool\Pool\Hook\PoolItemHook;
+use Ody\ConnectionPool\Pool\Hook\PoolItemHookInterface;
+use Ody\ConnectionPool\Pool\PoolItemWrapperInterface;
 use Psr\Log\LoggerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\Hook\PoolItemHook;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\Hook\PoolItemHookInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\Exceptions\PoolItemCreationException;
 
 /**
  * @template TItem of object

@@ -2,26 +2,25 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool;
+namespace Ody\ConnectionPool\Pool;
 
-use Throwable;
-use WeakReference;
 use LogicException;
+use Ody\ConnectionPool\Pool\Hook\PoolItemHook;
+use Ody\ConnectionPool\Pool\Hook\PoolItemHookManagerInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use ReflectionClass;
 use SplObjectStorage;
 use Swoole\Coroutine;
-use Psr\Log\NullLogger;
-use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Channel;
-use Ody\ConnectionPool\ConnectionPool\Pool\Hook\PoolItemHook;
-use Ody\ConnectionPool\ConnectionPool\Pool\Hook\PoolItemHookManagerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskSchedulerInterface;
-
-use function max;
+use Throwable;
+use WeakReference;
+use function array_key_exists;
 use function hrtime;
 use function is_null;
+use function max;
 use function sprintf;
-use function array_key_exists;
 
 /**
  * @template TItem of object

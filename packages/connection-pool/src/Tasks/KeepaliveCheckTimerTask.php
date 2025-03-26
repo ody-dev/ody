@@ -2,16 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Tasks;
+namespace Ody\ConnectionPool\Tasks;
 
+use Ody\ConnectionPool\KeepaliveCheckerInterface;
+use Ody\ConnectionPool\Pool\Exceptions\PoolItemCreationException;
+use Ody\ConnectionPool\Pool\Exceptions\PoolItemRemovedException;
+use Ody\ConnectionPool\Pool\PoolItemState;
+use Ody\ConnectionPool\Pool\PoolItemWrapperInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
 use Psr\Log\LoggerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemState;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
-use Ody\ConnectionPool\ConnectionPool\KeepaliveCheckerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\Exceptions\PoolItemRemovedException;
-use Ody\ConnectionPool\ConnectionPool\Pool\Exceptions\PoolItemCreationException;
-
 use function is_null;
 
 /**

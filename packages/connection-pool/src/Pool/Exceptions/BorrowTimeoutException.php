@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool\Pool\Exceptions;
+namespace Ody\ConnectionPool\Pool\Exceptions;
 
 use Exception;
 

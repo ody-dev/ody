@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ody\DB\ConnectionPool;
+namespace Ody\DB;
 
 use Ody\ConnectionPool\Pool\PoolItemFactoryInterface;
 use PDO;

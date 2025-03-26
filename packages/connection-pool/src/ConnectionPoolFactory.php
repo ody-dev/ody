@@ -2,31 +2,30 @@
 
 declare(strict_types=1);
 
-namespace Ody\ConnectionPool\ConnectionPool;
+namespace Ody\ConnectionPool;
 
 use LogicException;
-use ReflectionClass;
-use Psr\Log\NullLogger;
-use Ody\ConnectionPool\ConnectionPool\Pool\Pool;
+use Ody\ConnectionPool\Hooks\ConnectionCheckHook;
+use Ody\ConnectionPool\Pool\Hook\PoolItemHookManager;
+use Ody\ConnectionPool\Pool\Pool;
+use Ody\ConnectionPool\Pool\PoolConfig;
+use Ody\ConnectionPool\Pool\PoolInterface;
+use Ody\ConnectionPool\Pool\PoolItemFactoryInterface;
+use Ody\ConnectionPool\Pool\PoolItemWrapperFactory;
+use Ody\ConnectionPool\Pool\PoolItemWrapperInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
+use Ody\ConnectionPool\Pool\TimerTask\TimerTaskScheduler;
+use Ody\ConnectionPool\Tasks\KeepaliveCheckTimerTask;
+use Ody\ConnectionPool\Tasks\LeakDetectionTimerTask;
+use Ody\ConnectionPool\Tasks\PoolItemUpdaterTimerTask;
+use Ody\ConnectionPool\Tasks\ResizerTimerTask;
 use Psr\Log\LoggerInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolConfig;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperFactory;
-use Ody\ConnectionPool\ConnectionPool\Pool\Hook\PoolItemHookManager;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemFactoryInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\PoolItemWrapperInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskInterface;
-use Ody\ConnectionPool\ConnectionPool\Pool\TimerTask\TimerTaskScheduler;
-use Ody\ConnectionPool\ConnectionPool\Tasks\ResizerTimerTask;
-use Ody\ConnectionPool\ConnectionPool\Hooks\ConnectionCheckHook;
-use Ody\ConnectionPool\ConnectionPool\Tasks\LeakDetectionTimerTask;
-use Ody\ConnectionPool\ConnectionPool\Tasks\KeepaliveCheckTimerTask;
-use Ody\ConnectionPool\ConnectionPool\Tasks\PoolItemUpdaterTimerTask;
-
+use Psr\Log\NullLogger;
+use ReflectionClass;
+use function array_map;
 use function count;
 use function substr;
 use function uniqid;
-use function array_map;
 
 /**
  * @template TConnection of object

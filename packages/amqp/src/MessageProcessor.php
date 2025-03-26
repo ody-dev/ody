@@ -61,6 +61,24 @@ class MessageProcessor
         ];
     }
 
+    // Add this method to MessageProcessor
+    public function registerConsumerClass(string $consumerClass): void
+    {
+        if (!class_exists($consumerClass)) {
+            throw new \InvalidArgumentException("Consumer class $consumerClass does not exist");
+        }
+
+        $reflection = new ReflectionClass($consumerClass);
+        $attributes = $reflection->getAttributes(Consumer::class, ReflectionAttribute::IS_INSTANCEOF);
+
+        if (empty($attributes)) {
+            throw new \InvalidArgumentException("Class $consumerClass does not have the Consumer attribute");
+        }
+
+        $consumerAttribute = $attributes[0]->newInstance();
+        $this->consumerClasses[$consumerClass] = $consumerAttribute;
+    }
+
     /**
      * Register a producer
      */
@@ -154,15 +172,14 @@ class MessageProcessor
         return $this->doProduceInCoroutine($producerMessage, $poolName);
     }
 
-    /**
-     * Internal method to produce a message within a coroutine
-     */
     private function doProduceInCoroutine(object $producerMessage, string $poolName): bool
     {
         $connection = null;
+        $channel = null;
 
         try {
-            $connection = ConnectionManager::getConnection($poolName);
+            // Create direct connection instead of using pool
+            $connection = AMQP::createConnection($poolName);
             $channel = $connection->channel();
 
             // Get producer attribute
@@ -226,16 +243,15 @@ class MessageProcessor
                 $routingKey
             );
 
-            // Close the channel
+            // Close the channel and connection
             $channel->close();
-
-            // Return the connection to the pool
-            ConnectionManager::returnConnection($connection, $poolName);
+            $connection->close();
 
             return true;
         } catch (\Throwable $e) {
             // Log the error
             error_log("Error producing AMQP message: " . $e->getMessage());
+            error_log($e->getTraceAsString());
 
             // Clean up
             try {
@@ -243,8 +259,8 @@ class MessageProcessor
                     $channel->close();
                 }
 
-                if (isset($connection)) {
-                    ConnectionManager::returnConnection($connection, $poolName);
+                if (isset($connection) && $connection->isConnected()) {
+                    $connection->close();
                 }
             } catch (\Throwable $cleanup) {
                 // Ignore cleanup errors

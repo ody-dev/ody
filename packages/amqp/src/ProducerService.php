@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
-use Ody\AMQP\Attributes\Producer;
 use ReflectionClass;
 
 /**
@@ -69,23 +68,22 @@ class ProducerService
         // Use default pool if not specified
         $poolName ??= $this->defaultPool;
 
-        // Verify that the producer class exists and has the Producer attribute
-        if (!class_exists($producerClass)) {
-            throw new \InvalidArgumentException("Producer class $producerClass does not exist");
+        try {
+            // Verify that the producer class exists and has the Producer attribute
+            if (!class_exists($producerClass)) {
+                throw new \InvalidArgumentException("Producer class $producerClass does not exist");
+            }
+
+            // Create producer instance with the provided arguments
+            $reflection = new ReflectionClass($producerClass);
+            $producer = $reflection->newInstanceArgs($args);
+
+            // Pass to message processor - let it decide if a coroutine is needed
+            return $this->amqpManager->produce($producer, $poolName);
+        } catch (\Throwable $e) {
+            // Log error
+            error_log("Error producing message: " . $e->getMessage());
+            return false;
         }
-
-        $reflectionClass = new ReflectionClass($producerClass);
-        $attributes = $reflectionClass->getAttributes(Producer::class);
-
-        if (empty($attributes)) {
-            throw new \InvalidArgumentException("Class $producerClass does not have the Producer attribute");
-        }
-
-        // Create producer instance with the provided arguments
-        $reflection = new ReflectionClass($producerClass);
-        $producer = $reflection->newInstanceArgs($args);
-
-        // Produce the message
-        return $this->amqpManager->produce($producer, $poolName);
     }
 }

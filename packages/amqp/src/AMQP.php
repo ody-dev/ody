@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
+use PhpAmqpLib\Connection\AMQPStreamConnection;
 use Swoole\Coroutine;
+
+//use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 /**
  * Facade for AMQP functionality
@@ -31,7 +34,7 @@ class AMQP
         if (!Coroutine::getCid()) {
             // If not, create a coroutine
             $result = [false];
-            Coroutine\run(function () use ($producerClass, $args, $pool, &$result) {
+            Coroutine::create(function () use ($producerClass, $args, $pool, &$result) {
                 $result[0] = self::getProducerService()->produce($producerClass, $args, $pool);
             });
             return $result[0];
@@ -83,7 +86,7 @@ class AMQP
         if (!Coroutine::getCid()) {
             // If not, create a coroutine
             $result = [false];
-            Coroutine\run(function () use ($producerClass, $args, $delayMs, $pool, &$result) {
+            Coroutine::create(function () use ($producerClass, $args, $delayMs, $pool, &$result) {
                 $result[0] = self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $pool);
             });
             return $result[0];
@@ -99,5 +102,31 @@ class AMQP
     public static function setProducerService(ProducerService $service): void
     {
         self::$producerService = $service;
+    }
+
+    /**
+     * Create a direct connection bypassing the pool
+     */
+    public static function createConnection(string $poolName = 'default'): AMQPStreamConnection
+    {
+        $config = config('amqp');
+        $poolConfig = $config[$poolName] ?? $config['default'] ?? [];
+
+        return new AMQPStreamConnection(
+            host: $poolConfig['host'] ?? 'localhost',
+            port: $poolConfig['port'] ?? 5672,
+            user: $poolConfig['user'] ?? 'admin',
+            password: $poolConfig['password'] ?? 'password',
+            vhost: $poolConfig['vhost'] ?? '/',
+            insist: ($poolConfig['params']['insist'] ?? false),
+            login_method: ($poolConfig['params']['login_method'] ?? 'AMQPLAIN'),
+            login_response: null,
+            locale: ($poolConfig['params']['locale'] ?? 'en_US'),
+            connection_timeout: ($poolConfig['params']['connection_timeout'] ?? 3.0),
+            read_write_timeout: ($poolConfig['params']['read_write_timeout'] ?? 3.0),
+            context: null,
+            keepalive: ($poolConfig['params']['keepalive'] ?? false),
+            heartbeat: ($poolConfig['params']['heartbeat'] ?? 0)
+        );
     }
 }

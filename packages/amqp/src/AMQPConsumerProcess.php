@@ -4,25 +4,28 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
+use Exception;
 use Ody\AMQP\Attributes\Consumer;
+use Ody\AMQP\Message\Result;
 use Ody\Process\StandardProcess;
-use Ody\Task\Task;
 use Ody\Task\TaskManager;
 use PhpAmqpLib\Channel\AMQPChannel;
+use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use Swoole\Coroutine;
 use Swoole\Process;
+use Swoole\Timer;
+use Throwable;
 
-/**
- * Process that runs an AMQP consumer
- */
 class AMQPConsumerProcess extends StandardProcess
 {
-    private object $consumer;
+    private string $consumerClass;
     private Consumer $consumerAttribute;
     private string $poolName;
     private TaskManager $taskManager;
     private ?AMQPChannel $channel = null;
+    private ?AMQPStreamConnection $connection = null;
+    private bool $serverReady = false;
 
     /**
      * {@inheritDoc}
@@ -31,7 +34,7 @@ class AMQPConsumerProcess extends StandardProcess
     {
         parent::__construct($args, $worker);
 
-        $this->consumer = $args['consumer_instance'];
+        $this->consumerClass = $args['consumer_class'];
         $this->consumerAttribute = $args['consumer_attribute'];
         $this->poolName = $args['pool_name'];
         $this->taskManager = $args['task_manager'];
@@ -47,116 +50,213 @@ class AMQPConsumerProcess extends StandardProcess
             $this->running = false;
 
             // Close channel and connection if they're open
-            if ($this->channel) {
+            if ($this->channel && $this->channel->is_open()) {
                 try {
                     $this->channel->close();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
+                    // Ignore exceptions during shutdown
+                }
+            }
+
+            if ($this->connection && $this->connection->isConnected()) {
+                try {
+                    $this->connection->close();
+                } catch (Exception $e) {
                     // Ignore exceptions during shutdown
                 }
             }
         });
 
-        // Since this is a Swoole process, we need to enable coroutines explicitly
-        Coroutine\run(function () {
-            try {
-                // Now we're in a coroutine context, so it's safe to get a connection
-                $connection = ConnectionManager::getConnection($this->poolName);
-                $this->channel = $connection->channel();
-
-                // Set QoS if specified
-                if ($this->consumerAttribute->prefetchCount !== null) {
-                    $this->channel->basic_qos(0, $this->consumerAttribute->prefetchCount, false);
-                }
-
-                // Declare exchange
-                $this->channel->exchange_declare(
-                    $this->consumerAttribute->exchange,
-                    $this->consumerAttribute->type,
-                    false,
-                    true,
-                    false
-                );
-
-                // Declare queue
-                $this->channel->queue_declare(
-                    $this->consumerAttribute->queue,
-                    false,
-                    true,
-                    false,
-                    false
-                );
-
-                // Bind queue to exchange
-                $this->channel->queue_bind(
-                    $this->consumerAttribute->queue,
-                    $this->consumerAttribute->exchange,
-                    $this->consumerAttribute->routingKey
-                );
-
-                // Set up consumer callback
-                $this->channel->basic_consume(
-                    $this->consumerAttribute->queue,
-                    '',
-                    false,
-                    false,
-                    false,
-                    false,
-                    function (AMQPMessage $message) {
-                        // Process the message using a Task
-                        $this->processMessageWithTask($message);
-                    }
-                );
-
-                // Keep the process running
-                while ($this->running) {
-                    // Process signals
-                    pcntl_signal_dispatch();
-
-                    // Process any messages in the queue
-                    $this->channel->wait(null, true, 1);
-
-                    // Yield to other coroutines
-                    Coroutine::sleep(0.001);
-                }
-
-                // Clean up resources
-                if ($this->channel && $this->channel->is_open()) {
-                    $this->channel->close();
-                }
-
-                ConnectionManager::returnConnection($connection, $this->poolName);
-            } catch (\Exception $e) {
-                // Log the error
-                error_log("AMQP Consumer process error: " . $e->getMessage());
-
-                // If we should restart, exit with non-zero code so the process manager will restart it
-                // Otherwise just exit gracefully
-                exit(1);
-            }
+        // Wait a bit before starting the consumer to ensure the server is ready
+        Timer::after(10000, function () {
+            $this->startConsumer();
         });
     }
 
     /**
-     * Process a message using the Task system
+     * Start the consumer with direct connection (bypassing pool)
      */
-    private function processMessageWithTask(AMQPMessage $message): void
+    private function startConsumer(): void
     {
-        // Use the task system to process the message
-        Task::execute(AMQPMessageTask::class, [
-            'consumer_class' => get_class($this->consumer),
-            'message_body' => $message->body,
-            'delivery_tag' => $message->getDeliveryTag(),
-            'channel' => $this->channel,
-        ]);
+        try {
+            // Create the consumer instance
+            $consumer = new $this->consumerClass();
+
+            // Get config for this pool
+            $config = $this->getConnectionConfig();
+
+            // Create direct connection rather than using the pool
+            $this->connection = new AMQPStreamConnection(
+                host: $config['host'] ?? 'localhost',
+                port: $config['port'] ?? 5672,
+                user: $config['user'] ?? 'guest',
+                password: $config['password'] ?? 'guest',
+                vhost: $config['vhost'] ?? '/',
+                insist: $config['params']['insist'] ?? false,
+                login_method: $config['params']['login_method'] ?? 'AMQPLAIN',
+                login_response: null,
+                locale: $config['params']['locale'] ?? 'en_US',
+                connection_timeout: $config['params']['connection_timeout'] ?? 3.0,
+                read_write_timeout: $config['params']['read_write_timeout'] ?? 3.0,
+                context: null,
+                keepalive: $config['params']['keepalive'] ?? false,
+                heartbeat: $config['params']['heartbeat'] ?? 0
+            );
+
+            $this->channel = $this->connection->channel();
+
+            // Set QoS if specified
+            if ($this->consumerAttribute->prefetchCount !== null) {
+                $this->channel->basic_qos(0, $this->consumerAttribute->prefetchCount, false);
+            }
+
+            // Declare exchange
+            $this->channel->exchange_declare(
+                $this->consumerAttribute->exchange,
+                $this->consumerAttribute->type,
+                false,
+                true,
+                false
+            );
+
+            // Declare queue
+            $this->channel->queue_declare(
+                $this->consumerAttribute->queue,
+                false,
+                true,
+                false,
+                false
+            );
+
+            // Bind queue to exchange
+            $this->channel->queue_bind(
+                $this->consumerAttribute->queue,
+                $this->consumerAttribute->exchange,
+                $this->consumerAttribute->routingKey
+            );
+
+            // Set up consumer callback
+            $this->channel->basic_consume(
+                $this->consumerAttribute->queue,
+                '',
+                false,
+                false,
+                false,
+                false,
+                function (AMQPMessage $message) use ($consumer) {
+                    // Process the message
+                    $this->processAmqpMessage($consumer, $message);
+                }
+            );
+
+            // Keep the process running
+            while ($this->running) {
+                // Process signals
+                pcntl_signal_dispatch();
+
+                // Process any messages in the queue
+                $this->channel->wait(null, true, 1);
+
+                // Yield to other coroutines
+                Coroutine::sleep(0.001);
+            }
+
+            // Clean up resources
+            if ($this->channel && $this->channel->is_open()) {
+                $this->channel->close();
+            }
+
+            if ($this->connection && $this->connection->isConnected()) {
+                $this->connection->close();
+            }
+        } catch (Exception $e) {
+            // Log the error with detailed stack trace
+            error_log("AMQP Consumer process error: " . $e->getMessage());
+            error_log($e->getTraceAsString());
+
+            // If we should restart, exit with non-zero code so the process manager will restart it
+            exit(1);
+        }
     }
 
     /**
-     * Process messages sent to this process
+     * Get connection configuration for this pool
+     */
+    private function getConnectionConfig(): array
+    {
+        // Access the stored configuration directly
+        global $container;
+        $config = config('amqp');
+
+        if (isset($config[$this->poolName]) && is_array($config[$this->poolName])) {
+            return $config[$this->poolName];
+        }
+
+        // Default configuration
+        return [
+            'host' => 'localhost',
+            'port' => 5672,
+            'user' => 'guest',
+            'password' => 'guest',
+            'vhost' => '/',
+            'params' => [
+                'connection_timeout' => 3.0,
+                'read_write_timeout' => 3.0,
+                'heartbeat' => 60,
+                'keepalive' => true,
+                'insist' => false,
+                'login_method' => 'AMQPLAIN',
+                'locale' => 'en_US',
+            ],
+        ];
+    }
+
+    private function processAmqpMessage(object $consumer, AMQPMessage $message): void
+    {
+        try {
+            // Process the message directly for now instead of using a Task
+            // This is simpler and avoids potential issues with task system
+            $data = json_decode($message->body, true) ?: [];
+            $result = $consumer->consumeMessage($data, $message);
+
+            // Handle the result
+            switch ($result) {
+                case Result::ACK:
+                    $this->channel->basic_ack($message->getDeliveryTag());
+                    break;
+
+                case Result::NACK:
+                    $this->channel->basic_nack($message->getDeliveryTag());
+                    break;
+
+                case Result::REQUEUE:
+                    $this->channel->basic_reject($message->getDeliveryTag(), true);
+                    break;
+
+                case Result::DROP:
+                    $this->channel->basic_reject($message->getDeliveryTag(), false);
+                    break;
+            }
+
+        } catch (Throwable $e) {
+            error_log("Error processing message: " . $e->getMessage());
+            error_log($e->getTraceAsString());
+
+            // Reject the message
+            try {
+                $this->channel->basic_reject($message->getDeliveryTag(), false);
+            } catch (Throwable $e) {
+                error_log("Error rejecting message: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Process IPC messages sent to this process
      */
     protected function processMessage(string $data): ?string
     {
         // This is used for control messages to the process
-        // For example, to request stats or to trigger a graceful shutdown
         $command = json_decode($data, true);
 
         if ($command && isset($command['action'])) {
@@ -164,7 +264,7 @@ class AMQPConsumerProcess extends StandardProcess
                 case 'status':
                     return json_encode([
                         'status' => 'running',
-                        'consumer' => get_class($this->consumer),
+                        'consumer' => $this->consumerClass,
                         'queue' => $this->consumerAttribute->queue,
                     ]);
 

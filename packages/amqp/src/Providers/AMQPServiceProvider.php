@@ -2,6 +2,7 @@
 
 namespace Ody\AMQP\Providers;
 
+//use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPManager;
 use Ody\AMQP\ProducerService;
@@ -52,24 +53,8 @@ class AMQPServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Only bootstrap AMQP when running the server (not in CLI commands)
-        if (!$this->isRunningInConsole() || $this->isServerCommand()) {
-            // Initialize AMQP connections and processes
-            $this->container->get(AMQPBootstrap::class)->boot();
-        }
-    }
-
-    /**
-     * Check if we're running a server command
-     */
-    protected function isServerCommand(): bool
-    {
-        global $argv;
-        if (!isset($argv)) {
-            return false;
-        }
-
-        $command = $argv[1] ?? '';
-        return $command === 'serve' || $command === 'start' || $command === 'restart';
+        // Only do initialization at boot time, defer actual process starting
+        // to worker start events
+        $this->container->get(AMQPBootstrap::class)->boot();
     }
 }

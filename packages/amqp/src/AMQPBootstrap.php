@@ -16,8 +16,8 @@ class AMQPBootstrap
 
     public function __construct(
         private Config $config,
-        private TaskManager     $taskManager,
-        private ProcessManager  $processManager,
+        private TaskManager    $taskManager,
+        private ProcessManager $processManager,
     )
     {
         $this->messageProcessor = new MessageProcessor($this->taskManager);
@@ -30,8 +30,7 @@ class AMQPBootstrap
 
     /**
      * Boot the AMQP module
-     * This now only registers the configuration and starts consumer processes,
-     * without initializing the connections yet.
+     * This needs to fork processes before the server starts
      */
     public function boot(): void
     {
@@ -50,13 +49,13 @@ class AMQPBootstrap
             ConnectionManager::storePoolConfig($poolConfig, $name);
         }
 
-        // Register consumers and producers
+        // Register components (but don't create instances yet)
         $this->registerComponents();
 
         // Start consumer processes based on configuration
         $processConfig = $config['process'] ?? [];
         if ($processConfig['enable'] ?? true) {
-            $this->startConsumerProcesses($config);
+            $this->forkConsumerProcesses($config);
         }
     }
 
@@ -66,11 +65,11 @@ class AMQPBootstrap
         $consumerClasses = $this->findConsumerClasses();
         foreach ($consumerClasses as $class) {
             try {
-                // We can instantiate consumers as they likely don't require parameters
-                $this->messageProcessor->registerConsumer(new $class());
+                // Just register the class, don't instantiate yet
+                $this->messageProcessor->registerConsumerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                error_log("Error instantiating consumer $class: " . $e->getMessage());
+                error_log("Error registering consumer $class: " . $e->getMessage());
             }
         }
 
@@ -78,7 +77,6 @@ class AMQPBootstrap
         $producerClasses = $this->findProducerClasses();
         foreach ($producerClasses as $class) {
             try {
-                // Instead of creating an instance, just register the class information
                 $this->messageProcessor->registerProducerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other producers
@@ -88,16 +86,62 @@ class AMQPBootstrap
     }
 
     /**
+     * Fork consumer processes now, but the actual consumer logic will wait
+     * until server/worker is ready
+     */
+    private function forkConsumerProcesses(array $config): void
+    {
+        $poolName = 'default';
+        $consumerClasses = $this->findConsumerClasses();
+
+        foreach ($consumerClasses as $consumerClass) {
+            try {
+                $reflection = new ReflectionClass($consumerClass);
+                $attributes = $reflection->getAttributes(Consumer::class, ReflectionAttribute::IS_INSTANCEOF);
+
+                if (empty($attributes)) {
+                    continue;
+                }
+
+                $consumerAttribute = $attributes[0]->newInstance();
+
+                // Skip if consumer is disabled
+                if (!$consumerAttribute->enable) {
+                    continue;
+                }
+
+                // Fork consumer process with necessary information
+                // But don't instantiate the consumer yet
+                $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $poolName);
+            } catch (\Throwable $e) {
+                // Log error but continue with other consumers
+                error_log("Error forking consumer process for $consumerClass: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Register callback to start consumer processes when workers are ready
+     */
+    private function registerWorkerStartCallback(array $config): void
+    {
+        ServerEvents::onWorkerStart(function (int $workerId) use ($config) {
+            // Only start processes in worker 0 to avoid duplicate processes
+            $workerIdToUse = $config['process']['worker_id'] ?? 0;
+            if ($workerId === $workerIdToUse) {
+                $this->startConsumerProcesses($config);
+            }
+        });
+    }
+
+    /**
      * Start consumer processes
      */
     private function startConsumerProcesses(array $config): void
     {
         $poolName = 'default';
-        $maxConsumers = $config['process']['max_consumers'] ?? 10;
-        $autoRestart = $config['process']['auto_restart'] ?? true;
 
-        $consumers = $this->findConsumerClasses();
-        foreach ($consumers as $consumerClass) {
+        foreach ($this->registeredConsumers as $consumerClass) {
             try {
                 $reflection = new ReflectionClass($consumerClass);
                 $attributes = $reflection->getAttributes(Consumer::class, ReflectionAttribute::IS_INSTANCEOF);
@@ -114,7 +158,7 @@ class AMQPBootstrap
                     continue;
                 }
 
-                // Start the consumer processes
+                // Start the consumer in the worker process
                 $this->amqpManager->startConsumerProcess($consumerInstance, $consumerAttribute, $poolName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers

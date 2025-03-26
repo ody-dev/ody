@@ -8,7 +8,6 @@ use Ody\AMQP\ConnectionPool\RabbitMQConnectionFactory;
 use Ody\ConnectionPool\ConnectionPoolFactory;
 use Ody\ConnectionPool\Pool\PoolInterface;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
-use Swoole\Coroutine;
 use Throwable;
 
 class ConnectionManager
@@ -131,7 +130,7 @@ class ConnectionManager
     public static function getConnection(string $poolName = 'default'): AMQPStreamConnection
     {
         // Check if we're in a coroutine context
-        if (!Coroutine::getCid()) {
+        if (!\Swoole\Coroutine::getCid()) {
             throw new \RuntimeException("AMQP operations must be performed within a coroutine");
         }
 

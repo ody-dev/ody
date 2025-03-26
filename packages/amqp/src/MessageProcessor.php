@@ -61,6 +61,24 @@ class MessageProcessor
         ];
     }
 
+    // Add this method to MessageProcessor
+    public function registerConsumerClass(string $consumerClass): void
+    {
+        if (!class_exists($consumerClass)) {
+            throw new \InvalidArgumentException("Consumer class $consumerClass does not exist");
+        }
+
+        $reflection = new ReflectionClass($consumerClass);
+        $attributes = $reflection->getAttributes(Consumer::class, ReflectionAttribute::IS_INSTANCEOF);
+
+        if (empty($attributes)) {
+            throw new \InvalidArgumentException("Class $consumerClass does not have the Consumer attribute");
+        }
+
+        $consumerAttribute = $attributes[0]->newInstance();
+        $this->consumerClasses[$consumerClass] = $consumerAttribute;
+    }
+
     /**
      * Register a producer
      */

@@ -123,8 +123,10 @@ class AMQP
             connection_timeout: ($connectionConfig['params']['connection_timeout'] ?? 3.0),
             read_write_timeout: ($connectionConfig['params']['read_write_timeout'] ?? 3.0),
             context: null,
-            keepalive: ($connectionConfig['params']['keepalive'] ?? false),
-            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 0)
+//            keepalive: ($connectionConfig['params']['keepalive'] ?? false),
+//            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 0),
+            heartbeat: 60, // Set a reasonable heartbeat value
+            keepalive: true, // Enable TCP keepalive
         );
     }
 }

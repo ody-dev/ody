@@ -8,8 +8,8 @@ return [
     'default' => [
         'host' => 'localhost',
         'port' => 5672,
-        'user' => 'guest',
-        'password' => 'guest',
+        'user' => 'admin',
+        'password' => 'password',
         'vhost' => '/',
 
         // Connection parameters
@@ -38,6 +38,14 @@ return [
             'heartbeat' => 60,
             'keepalive' => true,
         ],
+    ],
+
+    // Connection pooling configuration
+    'pool' => [
+        'enable' => true,
+        'max_connections' => 20,
+        'max_channels_per_connection' => 20,
+        'max_idle_time' => 60,  // seconds
     ],
 
     // Broker-specific configuration

@@ -48,7 +48,7 @@ class AMQPMessageTask implements TaskInterface
             ];
         } catch (\Throwable $e) {
             // Log the error
-            error_log("Error processing AMQP message: " . $e->getMessage());
+            logger()->error("Error processing AMQP message: " . $e->getMessage());
 
             // Always try to NACK the message so it doesn't get lost
             try {

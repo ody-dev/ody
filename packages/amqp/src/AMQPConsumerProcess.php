@@ -11,9 +11,9 @@ use Ody\Process\StandardProcess;
 use Ody\Task\TaskManager;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
-use PhpAmqpLib\Exception\AMQPTimeoutException;
-use PhpAmqpLib\Exception\AMQPConnectionClosedException;
 use PhpAmqpLib\Exception\AMQPChannelClosedException;
+use PhpAmqpLib\Exception\AMQPConnectionClosedException;
+use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 use Swoole\Coroutine;
 use Swoole\Process;
@@ -22,9 +22,9 @@ use Throwable;
 
 class AMQPConsumerProcess extends StandardProcess
 {
-    private string $consumerClass;
-    private Consumer $consumerAttribute;
-    private string $connectionName;
+    protected string $consumerClass;
+    protected Consumer $consumerAttribute;
+    protected string $connectionName;
     private TaskManager $taskManager;
     private ?AMQPChannel $channel = null;
     private ?AMQPStreamConnection $connection = null;
@@ -74,7 +74,7 @@ class AMQPConsumerProcess extends StandardProcess
     private function startConsumer(): void
     {
         try {
-            error_log("[AMQP] Starting consumer for {$this->consumerAttribute->queue}");
+            logger()->debug("[AMQP] Starting consumer for {$this->consumerAttribute->queue}");
 
             // Set up the connection and channel
             $this->setupConnection();
@@ -95,10 +95,10 @@ class AMQPConsumerProcess extends StandardProcess
                     } catch (AMQPTimeoutException $e) {
                         // This is normal when no messages are available - just continue
                     } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
-                        error_log("[AMQP] Connection or channel closed: " . $e->getMessage());
+                        logger()->debug("[AMQP] Connection or channel closed: " . $e->getMessage());
                         $this->handleDisconnect();
                     } catch (Throwable $e) {
-                        error_log("[AMQP] Error during channel wait: " . $e->getMessage());
+                        logger()->debug("[AMQP] Error during channel wait: " . $e->getMessage());
                         $this->handleDisconnect();
                     }
                 }
@@ -112,8 +112,8 @@ class AMQPConsumerProcess extends StandardProcess
 
         } catch (Exception $e) {
             // Log the error with detailed stack trace
-            error_log("[AMQP] Consumer process startup error: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->debug("[AMQP] Consumer process startup error: " . $e->getMessage());
+            logger()->debug($e->getTraceAsString());
 
             // If we should restart, exit with non-zero code so the process manager will restart it
             exit(1);
@@ -126,7 +126,7 @@ class AMQPConsumerProcess extends StandardProcess
     private function setupConnection(): void
     {
         try {
-            error_log("[AMQP] Setting up connection for {$this->consumerAttribute->queue}");
+            logger()->debug("[AMQP] Setting up connection for {$this->consumerAttribute->queue}");
 
             // Create the consumer instance
             $consumer = new $this->consumerClass();
@@ -134,16 +134,16 @@ class AMQPConsumerProcess extends StandardProcess
             // Create direct connection with enhanced heartbeat/timeout settings
             $this->connection = AMQP::createConnection($this->connectionName);
 
-            error_log("[AMQP] Connection established, creating channel");
+            logger()->debug("[AMQP] Connection established, creating channel");
             $this->channel = $this->connection->channel();
 
             // Set QoS if specified
             $prefetchCount = $this->consumerAttribute->prefetchCount ?? 10;
-            error_log("[AMQP] Setting prefetch count to {$prefetchCount}");
+            logger()->debug("[AMQP] Setting prefetch count to {$prefetchCount}");
             $this->channel->basic_qos(0, $prefetchCount, false);
 
             // Declare exchange
-            error_log("[AMQP] Declaring exchange {$this->consumerAttribute->exchange}");
+            logger()->debug("[AMQP] Declaring exchange {$this->consumerAttribute->exchange}");
             $this->channel->exchange_declare(
                 $this->consumerAttribute->exchange,
                 $this->consumerAttribute->type,
@@ -153,7 +153,7 @@ class AMQPConsumerProcess extends StandardProcess
             );
 
             // Declare queue
-            error_log("[AMQP] Declaring queue {$this->consumerAttribute->queue}");
+            logger()->debug("[AMQP] Declaring queue {$this->consumerAttribute->queue}");
             $this->channel->queue_declare(
                 $this->consumerAttribute->queue,
                 false,
@@ -163,7 +163,7 @@ class AMQPConsumerProcess extends StandardProcess
             );
 
             // Bind queue to exchange
-            error_log("[AMQP] Binding queue to exchange with routing key {$this->consumerAttribute->routingKey}");
+            logger()->debug("[AMQP] Binding queue to exchange with routing key {$this->consumerAttribute->routingKey}");
             $this->channel->queue_bind(
                 $this->consumerAttribute->queue,
                 $this->consumerAttribute->exchange,
@@ -171,7 +171,7 @@ class AMQPConsumerProcess extends StandardProcess
             );
 
             // Set up consumer callback
-            error_log("[AMQP] Setting up consumer callback");
+            logger()->debug("[AMQP] Setting up consumer callback");
             $this->channel->basic_consume(
                 $this->consumerAttribute->queue,
                 '', // consumer tag
@@ -185,14 +185,14 @@ class AMQPConsumerProcess extends StandardProcess
                 }
             );
 
-            error_log("[AMQP] Consumer setup complete for {$this->consumerAttribute->queue}");
+            logger()->debug("[AMQP] Consumer setup complete for {$this->consumerAttribute->queue}");
             $this->reconnecting = false;
             $this->reconnectAttempts = 0;
             $this->lastActivityTime = time(); // Reset activity time
 
         } catch (Throwable $e) {
-            error_log("[AMQP] Error during connection setup: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->debug("[AMQP] Error during connection setup: " . $e->getMessage());
+            logger()->debug($e->getTraceAsString());
 
             // Clean up any partial resources
             $this->cleanupResources();
@@ -222,21 +222,21 @@ class AMQPConsumerProcess extends StandardProcess
                 // Check for connection staleness (inactivity timeout)
                 $inactiveSeconds = time() - $this->lastActivityTime;
                 if ($inactiveSeconds > 30) { // 30 second inactivity threshold
-                    error_log("[AMQP] Connection inactive for {$inactiveSeconds}s, performing health check");
+                    logger()->debug("[AMQP] Connection inactive for {$inactiveSeconds}s, performing health check");
 
                     // Try to check connection is alive
                     if (!$this->isConnectionHealthy()) {
-                        error_log("[AMQP] Connection appears stale, forcing reconnect");
+                        logger()->debug("[AMQP] Connection appears stale, forcing reconnect");
                         $this->handleDisconnect();
                         return;
                     }
 
                     // If we got here, connection is still good, update activity time
                     $this->lastActivityTime = time();
-                    error_log("[AMQP] Connection health check passed for {$this->consumerAttribute->queue}");
+                    logger()->debug("[AMQP] Connection health check passed for {$this->consumerAttribute->queue}");
                 }
             } catch (Throwable $e) {
-                error_log("[AMQP] Error during health check: " . $e->getMessage());
+                logger()->debug("[AMQP] Error during health check: " . $e->getMessage());
                 $this->handleDisconnect();
             }
         });
@@ -256,7 +256,7 @@ class AMQPConsumerProcess extends StandardProcess
         );
 
         // Log the critical error
-        error_log($errorMessage);
+        logger()->debug($errorMessage);
 
         // implement additional alerting mechanisms:
         $alertsFile = '/tmp/amqp_connection_alerts.log';
@@ -283,7 +283,7 @@ class AMQPConsumerProcess extends StandardProcess
                 ]
             ]);
         } catch (Throwable $e) {
-            error_log("[AMQP] Failed to send alert to monitoring service: " . $e->getMessage());
+            logger()->debug("[AMQP] Failed to send alert to monitoring service: " . $e->getMessage());
         }
         */
     }
@@ -291,7 +291,7 @@ class AMQPConsumerProcess extends StandardProcess
     /**
      * Handle a disconnection event
      */
-    private function handleDisconnect(): void
+    protected function handleDisconnect(): void
     {
         if ($this->reconnecting) {
             return; // Already in reconnect process
@@ -305,14 +305,14 @@ class AMQPConsumerProcess extends StandardProcess
 
         // Handle max reconnect attempts
         if ($this->reconnectAttempts > self::MAX_RECONNECT_ATTEMPTS) {
-            error_log("[AMQP] Max reconnect attempts reached for {$this->consumerAttribute->queue}, implementing longer backoff");
+            logger()->debug("[AMQP] Max reconnect attempts reached for {$this->consumerAttribute->queue}, implementing longer backoff");
 
             // Instead of exiting, we'll implement a longer backoff and keep trying
             // We'll reset the counter but use a longer delay
             $this->reconnectAttempts = 1;
             $delay = self::RECONNECT_DELAY_MS * 10; // Much longer delay after max attempts
 
-            error_log("[AMQP] Extended reconnection backoff: waiting {$delay}ms before next attempt");
+            logger()->debug("[AMQP] Extended reconnection backoff: waiting {$delay}ms before next attempt");
 
             // Optionally, you could implement an alerting mechanism here
             // For example, sending an alert to a monitoring system
@@ -320,16 +320,16 @@ class AMQPConsumerProcess extends StandardProcess
         } else {
             // Normal exponential backoff
             $delay = self::RECONNECT_DELAY_MS * min($this->reconnectAttempts, 5); // Exponential backoff capped at 5x
-            error_log("[AMQP] Scheduling reconnect attempt {$this->reconnectAttempts} in {$delay}ms");
+            logger()->debug("[AMQP] Scheduling reconnect attempt {$this->reconnectAttempts} in {$delay}ms");
         }
 
         // Schedule reconnect
         Timer::after($delay, function () {
             try {
-                error_log("[AMQP] Attempting to reconnect...");
+                logger()->debug("[AMQP] Attempting to reconnect...");
                 $this->setupConnection();
             } catch (Throwable $e) {
-                error_log("[AMQP] Reconnect failed: " . $e->getMessage());
+                logger()->debug("[AMQP] Reconnect failed: " . $e->getMessage());
                 $this->reconnecting = false; // Reset flag so next health check can try again
             }
         });
@@ -338,38 +338,38 @@ class AMQPConsumerProcess extends StandardProcess
     /**
      * Process an AMQP message
      */
-    private function processAmqpMessage(object $consumer, AMQPMessage $message): void
+    protected function processAmqpMessage(object $consumer, AMQPMessage $message): void
     {
         try {
             $deliveryTag = $message->getDeliveryTag();
-            error_log("[AMQP] Processing message with delivery tag: {$deliveryTag}");
+            logger()->debug("[AMQP] Processing message with delivery tag: {$deliveryTag}");
 
             // Process the message directly for now instead of using a Task
             $data = json_decode($message->body, true) ?: [];
-            error_log("[AMQP] Message content: " . json_encode($data));
+            logger()->debug("[AMQP] Message content: " . json_encode($data));
 
             $result = $consumer->consumeMessage($data, $message);
-            error_log("[AMQP] Consumer returned result: {$result->name}");
+            logger()->debug("[AMQP] Consumer returned result: {$result->name}");
 
             // Handle the result
             switch ($result) {
                 case Result::ACK:
-                    error_log("[AMQP] Acknowledging message {$deliveryTag}");
+                    logger()->debug("[AMQP] Acknowledging message {$deliveryTag}");
                     $this->channel->basic_ack($deliveryTag);
                     break;
 
                 case Result::NACK:
-                    error_log("[AMQP] Negative acknowledging message {$deliveryTag}");
+                    logger()->debug("[AMQP] Negative acknowledging message {$deliveryTag}");
                     $this->channel->basic_nack($deliveryTag);
                     break;
 
                 case Result::REQUEUE:
-                    error_log("[AMQP] Rejecting and requeuing message {$deliveryTag}");
+                    logger()->debug("[AMQP] Rejecting and requeuing message {$deliveryTag}");
                     $this->channel->basic_reject($deliveryTag, true);
                     break;
 
                 case Result::DROP:
-                    error_log("[AMQP] Dropping message {$deliveryTag}");
+                    logger()->debug("[AMQP] Dropping message {$deliveryTag}");
                     $this->channel->basic_reject($deliveryTag, false);
                     break;
             }
@@ -378,18 +378,18 @@ class AMQPConsumerProcess extends StandardProcess
             $this->lastActivityTime = time();
 
         } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
-            error_log("[AMQP] Connection/channel closed during message processing: " . $e->getMessage());
+            logger()->debug("[AMQP] Connection/channel closed during message processing: " . $e->getMessage());
             $this->handleDisconnect();
         } catch (Throwable $e) {
-            error_log("[AMQP] Error processing message: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->debug("[AMQP] Error processing message: " . $e->getMessage());
+            logger()->debug($e->getTraceAsString());
 
             // Reject the message
             try {
-                error_log("[AMQP] Rejecting message due to processing error");
+                logger()->debug("[AMQP] Rejecting message due to processing error");
                 $this->channel->basic_reject($message->getDeliveryTag(), false);
             } catch (Throwable $e) {
-                error_log("[AMQP] Error rejecting message: " . $e->getMessage());
+                logger()->debug("[AMQP] Error rejecting message: " . $e->getMessage());
                 // Force reconnect on any channel operation failure, but only if not already reconnecting
                 if (!$this->reconnecting) {
                     $this->handleDisconnect();
@@ -406,10 +406,10 @@ class AMQPConsumerProcess extends StandardProcess
         // Close channel
         if ($this->channel && $this->channel->is_open()) {
             try {
-                error_log("[AMQP] Closing channel");
+                logger()->debug("[AMQP] Closing channel");
                 $this->channel->close();
             } catch (Throwable $e) {
-                error_log("[AMQP] Error closing channel: " . $e->getMessage());
+                logger()->debug("[AMQP] Error closing channel: " . $e->getMessage());
             }
         }
         $this->channel = null;
@@ -417,10 +417,10 @@ class AMQPConsumerProcess extends StandardProcess
         // Close connection
         if ($this->connection && $this->connection->isConnected()) {
             try {
-                error_log("[AMQP] Closing connection");
+                logger()->debug("[AMQP] Closing connection");
                 $this->connection->close();
             } catch (Throwable $e) {
-                error_log("[AMQP] Error closing connection: " . $e->getMessage());
+                logger()->debug("[AMQP] Error closing connection: " . $e->getMessage());
             }
         }
         $this->connection = null;
@@ -451,7 +451,7 @@ class AMQPConsumerProcess extends StandardProcess
             $this->channel->basic_qos($this->channel->getQos()[0], $this->channel->getQos()[1], false);
             return true;
         } catch (Throwable $e) {
-            error_log("[AMQP] Channel health check failed: " . $e->getMessage());
+            logger()->debug("[AMQP] Channel health check failed: " . $e->getMessage());
             return false;
         }
     }

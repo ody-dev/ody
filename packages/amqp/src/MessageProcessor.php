@@ -10,7 +10,6 @@ use Ody\Task\TaskManager;
 use PhpAmqpLib\Message\AMQPMessage;
 use ReflectionAttribute;
 use ReflectionClass;
-use Swoole\Coroutine;
 
 class MessageProcessor
 {
@@ -27,7 +26,7 @@ class MessageProcessor
     /**
      * @var array<string, Producer> Store producer class attributes without instantiating
      */
-    private array $producerClasses = [];
+    protected array $producerClasses = [];
 
     /**
      * @var array<string, Consumer> Store consumer class attributes without instantiating
@@ -162,23 +161,7 @@ class MessageProcessor
      */
     public function produce(object $producerMessage, string $connectionName = 'default'): bool
     {
-        // Check if already in a coroutine
-        if (!Coroutine::getCid()) {
-            // If not in a coroutine, create one
-            $result = [false];
-            Coroutine\run(function () use ($producerMessage, $connectionName, &$result) {
-                $result[0] = $this->doProduceInCoroutine($producerMessage, $connectionName);
-            });
-
-            return $result[0];
-        }
-
-        // Already in a coroutine
-        return $this->doProduceInCoroutine($producerMessage, $connectionName);
-    }
-
-    private function doProduceInCoroutine(object $producerMessage, string $connectionName): bool
-    {
+        logger()->debug('MessageProcessor::produce()');
         $connection = null;
         $channel = null;
 
@@ -255,8 +238,8 @@ class MessageProcessor
             return true;
         } catch (\Throwable $e) {
             // Log the error
-            error_log("Error producing AMQP message: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->error("Error producing AMQP message: " . $e->getMessage());
+            logger()->error($e->getTraceAsString());
 
             // Clean up
             try {

@@ -243,27 +243,49 @@ class AMQPConsumerProcess extends StandardProcess
     }
 
     /**
-     * Check if the connection and channel are healthy
+     * Alert about persistent connection failures
+     * This can be extended to send alerts to monitoring systems, email, etc.
      */
-    private function isConnectionHealthy(): bool
+    private function alertConnectionFailure(): void
     {
-        if (!$this->connection || !$this->connection->isConnected()) {
-            return false;
-        }
+        $errorMessage = sprintf(
+            "[AMQP] CRITICAL: Consumer for queue %s (class %s) has failed to connect after %d attempts",
+            $this->consumerAttribute->queue,
+            $this->consumerClass,
+            self::MAX_RECONNECT_ATTEMPTS
+        );
 
-        if (!$this->channel || !$this->channel->is_open()) {
-            return false;
-        }
+        // Log the critical error
+        error_log($errorMessage);
 
-        // Perform a lightweight operation on the channel to verify it's responsive
+        // implement additional alerting mechanisms:
+        $alertsFile = '/tmp/amqp_connection_alerts.log';
+        file_put_contents(
+            $alertsFile,
+            date('[Y-m-d H:i:s] ') . $errorMessage . PHP_EOL,
+            FILE_APPEND
+        );
+
+        // send an alert there
+        /*
         try {
-            // This is a very lightweight operation that doesn't affect the channel
-            $this->channel->basic_qos($this->channel->getQos()[0], $this->channel->getQos()[1], false);
-            return true;
+            $monitoringUrl = '/api/alerts';
+            $client = new \GuzzleHttp\Client();
+            $client->post($monitoringUrl, [
+                'json' => [
+                    'severity' => 'critical',
+                    'service' => 'amqp',
+                    'message' => $errorMessage,
+                    'queue' => $this->consumerAttribute->queue,
+                    'consumer' => $this->consumerClass,
+                    'attempts' => self::MAX_RECONNECT_ATTEMPTS,
+                    'timestamp' => time()
+                ]
+            ]);
         } catch (Throwable $e) {
-            error_log("[AMQP] Channel health check failed: " . $e->getMessage());
-            return false;
+            error_log("[AMQP] Failed to send alert to monitoring service: " . $e->getMessage());
         }
+        */
     }
 
     /**
@@ -281,13 +303,25 @@ class AMQPConsumerProcess extends StandardProcess
         // Clean up existing resources
         $this->cleanupResources(false); // Don't cancel timers during reconnect
 
+        // Handle max reconnect attempts
         if ($this->reconnectAttempts > self::MAX_RECONNECT_ATTEMPTS) {
-            error_log("[AMQP] Max reconnect attempts reached, exiting process");
-            exit(1); // Exit so process manager can restart
-        }
+            error_log("[AMQP] Max reconnect attempts reached for {$this->consumerAttribute->queue}, implementing longer backoff");
 
-        $delay = self::RECONNECT_DELAY_MS * min($this->reconnectAttempts, 5); // Exponential backoff capped at 5x
-        error_log("[AMQP] Scheduling reconnect attempt {$this->reconnectAttempts} in {$delay}ms");
+            // Instead of exiting, we'll implement a longer backoff and keep trying
+            // We'll reset the counter but use a longer delay
+            $this->reconnectAttempts = 1;
+            $delay = self::RECONNECT_DELAY_MS * 10; // Much longer delay after max attempts
+
+            error_log("[AMQP] Extended reconnection backoff: waiting {$delay}ms before next attempt");
+
+            // Optionally, you could implement an alerting mechanism here
+            // For example, sending an alert to a monitoring system
+            $this->alertConnectionFailure();
+        } else {
+            // Normal exponential backoff
+            $delay = self::RECONNECT_DELAY_MS * min($this->reconnectAttempts, 5); // Exponential backoff capped at 5x
+            error_log("[AMQP] Scheduling reconnect attempt {$this->reconnectAttempts} in {$delay}ms");
+        }
 
         // Schedule reconnect
         Timer::after($delay, function () {
@@ -399,34 +433,26 @@ class AMQPConsumerProcess extends StandardProcess
     }
 
     /**
-     * Process IPC messages sent to this process
+     * Check if the connection and channel are healthy
      */
-    protected function processMessage(string $data): ?string
+    private function isConnectionHealthy(): bool
     {
-        // This is used for control messages to the process
-        $command = json_decode($data, true);
-
-        if ($command && isset($command['action'])) {
-            switch ($command['action']) {
-                case 'status':
-                    return json_encode([
-                        'status' => $this->reconnecting ? 'reconnecting' : 'running',
-                        'consumer' => $this->consumerClass,
-                        'queue' => $this->consumerAttribute->queue,
-                        'last_activity' => $this->lastActivityTime,
-                        'reconnect_attempts' => $this->reconnectAttempts,
-                    ]);
-
-                case 'shutdown':
-                    $this->running = false;
-                    return json_encode(['status' => 'shutting_down']);
-
-                case 'force_reconnect':
-                    $this->handleDisconnect();
-                    return json_encode(['status' => 'reconnecting']);
-            }
+        if (!$this->connection || !$this->connection->isConnected()) {
+            return false;
         }
 
-        return json_encode(['error' => 'Unknown command']);
+        if (!$this->channel || !$this->channel->is_open()) {
+            return false;
+        }
+
+        // Perform a lightweight operation on the channel to verify it's responsive
+        try {
+            // This is a very lightweight operation that doesn't affect the channel
+            $this->channel->basic_qos($this->channel->getQos()[0], $this->channel->getQos()[1], false);
+            return true;
+        } catch (Throwable $e) {
+            error_log("[AMQP] Channel health check failed: " . $e->getMessage());
+            return false;
+        }
     }
 }

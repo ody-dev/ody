@@ -14,6 +14,11 @@ class AMQPBootstrap
     private MessageProcessor $messageProcessor;
     private AMQPManager $amqpManager;
 
+    /**
+     * Track which consumers have already been forked to prevent duplicates
+     */
+    private array $forkedConsumers = [];
+
     public function __construct(
         private Config $config,
         private TaskManager    $taskManager,
@@ -85,6 +90,8 @@ class AMQPBootstrap
         $connectionName = 'default';
         $consumerClasses = $this->findConsumerClasses();
 
+        error_log("[AMQP] Found " . count($consumerClasses) . " consumer classes");
+
         foreach ($consumerClasses as $consumerClass) {
             try {
                 $reflection = new ReflectionClass($consumerClass);
@@ -101,8 +108,19 @@ class AMQPBootstrap
                     continue;
                 }
 
+                // Skip if we already forked a process for this queue
+                $queueKey = $consumerAttribute->exchange . ':' . $consumerAttribute->queue;
+                if (isset($this->forkedConsumers[$queueKey])) {
+                    error_log("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
+                    continue;
+                }
+
+                // Mark this queue as forked
+                $this->forkedConsumers[$queueKey] = true;
+
+                error_log("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
+
                 // Fork consumer process with necessary information
-                // But don't instantiate the consumer yet
                 $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $connectionName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
@@ -124,7 +142,10 @@ class AMQPBootstrap
             return $this->resolveBasePath($path);
         }, $paths);
 
-        return ClassScanner::findConsumerClasses($absolutePaths);
+        $classes = ClassScanner::findConsumerClasses($absolutePaths);
+
+        // Remove duplicates by using the class name as the key
+        return array_unique($classes);
     }
 
     /**
@@ -140,7 +161,10 @@ class AMQPBootstrap
             return $this->resolveBasePath($path);
         }, $paths);
 
-        return ClassScanner::findProducerClasses($absolutePaths);
+        $classes = ClassScanner::findProducerClasses($absolutePaths);
+
+        // Remove duplicates by using the class name as the key
+        return array_unique($classes);
     }
 
     /**
@@ -149,7 +173,7 @@ class AMQPBootstrap
     private function resolveBasePath(string $path): string
     {
         // If path is already absolute, return it
-        if (str_starts_with($path, '/')) {
+        if (strpos($path, '/') === 0) {
             return $path;
         }
 

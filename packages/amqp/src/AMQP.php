@@ -7,11 +7,6 @@ namespace Ody\AMQP;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use Swoole\Coroutine;
 
-//use PhpAmqpLib\Connection\AMQPStreamConnection;
-
-/**
- * Facade for AMQP functionality
- */
 class AMQP
 {
     /**
@@ -25,23 +20,23 @@ class AMQP
      *
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
-     * @param string|null $pool Optional connection pool name
+     * @param string|null $connectionName Optional connection configuration name
      * @return bool Success state
      */
-    public static function publish(string $producerClass, array $args = [], ?string $pool = null): bool
+    public static function publish(string $producerClass, array $args = [], ?string $connectionName = null): bool
     {
         // Check if we're in a coroutine context
         if (!Coroutine::getCid()) {
             // If not, create a coroutine
             $result = [false];
-            Coroutine::create(function () use ($producerClass, $args, $pool, &$result) {
-                $result[0] = self::getProducerService()->produce($producerClass, $args, $pool);
+            Coroutine::create(function () use ($producerClass, $args, $connectionName, &$result) {
+                $result[0] = self::getProducerService()->produce($producerClass, $args, $connectionName);
             });
             return $result[0];
         }
 
         // Already in a coroutine
-        return self::getProducerService()->produce($producerClass, $args, $pool);
+        return self::getProducerService()->produce($producerClass, $args, $connectionName);
     }
 
     /**
@@ -77,23 +72,23 @@ class AMQP
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
      * @param int $delayMs Delay in milliseconds
-     * @param string|null $pool Optional connection pool name
+     * @param string|null $connectionName Optional connection configuration name
      * @return bool Success state
      */
-    public static function publishDelayed(string $producerClass, array $args = [], int $delayMs = 1000, ?string $pool = null): bool
+    public static function publishDelayed(string $producerClass, array $args = [], int $delayMs = 1000, ?string $connectionName = null): bool
     {
         // Check if we're in a coroutine context
         if (!Coroutine::getCid()) {
             // If not, create a coroutine
             $result = [false];
-            Coroutine::create(function () use ($producerClass, $args, $delayMs, $pool, &$result) {
-                $result[0] = self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $pool);
+            Coroutine::create(function () use ($producerClass, $args, $delayMs, $connectionName, &$result) {
+                $result[0] = self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $connectionName);
             });
             return $result[0];
         }
 
         // Already in a coroutine
-        return self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $pool);
+        return self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $connectionName);
     }
 
     /**
@@ -105,28 +100,33 @@ class AMQP
     }
 
     /**
-     * Create a direct connection bypassing the pool
+     * Create a direct connection to RabbitMQ
+     *
+     * @param string $connectionName Name of the connection configuration to use
+     * @return AMQPStreamConnection
      */
-    public static function createConnection(string $poolName = 'default'): AMQPStreamConnection
+    public static function createConnection(string $connectionName = 'default'): AMQPStreamConnection
     {
         $config = config('amqp');
-        $poolConfig = $config[$poolName] ?? $config['default'] ?? [];
+        $connectionConfig = $config[$connectionName] ?? $config['default'] ?? [];
 
         return new AMQPStreamConnection(
-            host: $poolConfig['host'] ?? 'localhost',
-            port: $poolConfig['port'] ?? 5672,
-            user: $poolConfig['user'] ?? 'admin',
-            password: $poolConfig['password'] ?? 'password',
-            vhost: $poolConfig['vhost'] ?? '/',
-            insist: ($poolConfig['params']['insist'] ?? false),
-            login_method: ($poolConfig['params']['login_method'] ?? 'AMQPLAIN'),
+            host: $connectionConfig['host'] ?? 'localhost',
+            port: $connectionConfig['port'] ?? 5672,
+            user: $connectionConfig['user'] ?? 'guest',
+            password: $connectionConfig['password'] ?? 'guest',
+            vhost: $connectionConfig['vhost'] ?? '/',
+            insist: ($connectionConfig['params']['insist'] ?? false),
+            login_method: ($connectionConfig['params']['login_method'] ?? 'AMQPLAIN'),
             login_response: null,
-            locale: ($poolConfig['params']['locale'] ?? 'en_US'),
-            connection_timeout: ($poolConfig['params']['connection_timeout'] ?? 3.0),
-            read_write_timeout: ($poolConfig['params']['read_write_timeout'] ?? 3.0),
+            locale: ($connectionConfig['params']['locale'] ?? 'en_US'),
+            connection_timeout: ($connectionConfig['params']['connection_timeout'] ?? 3.0),
+            read_write_timeout: ($connectionConfig['params']['read_write_timeout'] ?? 3.0),
             context: null,
-            keepalive: ($poolConfig['params']['keepalive'] ?? false),
-            heartbeat: ($poolConfig['params']['heartbeat'] ?? 0)
+//            keepalive: ($connectionConfig['params']['keepalive'] ?? false),
+//            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 0),
+            heartbeat: 60, // Set a reasonable heartbeat value
+            keepalive: true, // Enable TCP keepalive
         );
     }
 }

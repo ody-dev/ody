@@ -2,9 +2,9 @@
 
 namespace Ody\AMQP\Providers;
 
-//use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPBootstrap;
 use Ody\AMQP\AMQPManager;
+use Ody\AMQP\MessageProcessor;
 use Ody\AMQP\ProducerService;
 use Ody\Foundation\Providers\ServiceProvider;
 use Ody\Process\ProcessManager;
@@ -26,17 +26,17 @@ class AMQPServiceProvider extends ServiceProvider
             );
         });
 
+        // Register the message processor as a singleton
+        $this->container->singleton(MessageProcessor::class, function () {
+            return new MessageProcessor($this->container->get(TaskManager::class));
+        });
+
         $this->container->singleton(AMQPManager::class, function () {
             return new AMQPManager(
-                $this->container->get('amqp.message_processor'),
+                $this->container->get(MessageProcessor::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class)
             );
-        });
-
-        // Register the message processor as a singleton
-        $this->container->singleton('amqp.message_processor', function () {
-            return new \Ody\AMQP\MessageProcessor($this->container->get(TaskManager::class));
         });
 
         // Register the producer service

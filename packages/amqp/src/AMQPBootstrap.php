@@ -14,6 +14,11 @@ class AMQPBootstrap
     private MessageProcessor $messageProcessor;
     private AMQPManager $amqpManager;
 
+    /**
+     * Track which consumers have already been forked to prevent duplicates
+     */
+    private array $forkedConsumers = [];
+
     public function __construct(
         private Config $config,
         private TaskManager    $taskManager,
@@ -38,15 +43,6 @@ class AMQPBootstrap
         $config = $this->config->get('amqp', []);
         if (!($config['enable'] ?? false)) {
             return;
-        }
-
-        // Store connection configurations for lazy initialization
-        foreach ($config as $name => $poolConfig) {
-            if (!is_array($poolConfig)) continue;
-            if ($name === 'enable' || $name === 'producer' || $name === 'consumer' || $name === 'process' || $name === 'broker') continue;
-
-            // Instead of initializing pools now, store the configuration
-            ConnectionManager::storePoolConfig($poolConfig, $name);
         }
 
         // Register components (but don't create instances yet)
@@ -91,8 +87,10 @@ class AMQPBootstrap
      */
     private function forkConsumerProcesses(array $config): void
     {
-        $poolName = 'default';
+        $connectionName = 'default';
         $consumerClasses = $this->findConsumerClasses();
+
+        error_log("[AMQP] Found " . count($consumerClasses) . " consumer classes");
 
         foreach ($consumerClasses as $consumerClass) {
             try {
@@ -110,59 +108,23 @@ class AMQPBootstrap
                     continue;
                 }
 
+                // Skip if we already forked a process for this queue
+                $queueKey = $consumerAttribute->exchange . ':' . $consumerAttribute->queue;
+                if (isset($this->forkedConsumers[$queueKey])) {
+                    error_log("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
+                    continue;
+                }
+
+                // Mark this queue as forked
+                $this->forkedConsumers[$queueKey] = true;
+
+                error_log("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
+
                 // Fork consumer process with necessary information
-                // But don't instantiate the consumer yet
-                $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $poolName);
+                $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $connectionName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
                 error_log("Error forking consumer process for $consumerClass: " . $e->getMessage());
-            }
-        }
-    }
-
-    /**
-     * Register callback to start consumer processes when workers are ready
-     */
-    private function registerWorkerStartCallback(array $config): void
-    {
-        ServerEvents::onWorkerStart(function (int $workerId) use ($config) {
-            // Only start processes in worker 0 to avoid duplicate processes
-            $workerIdToUse = $config['process']['worker_id'] ?? 0;
-            if ($workerId === $workerIdToUse) {
-                $this->startConsumerProcesses($config);
-            }
-        });
-    }
-
-    /**
-     * Start consumer processes
-     */
-    private function startConsumerProcesses(array $config): void
-    {
-        $poolName = 'default';
-
-        foreach ($this->registeredConsumers as $consumerClass) {
-            try {
-                $reflection = new ReflectionClass($consumerClass);
-                $attributes = $reflection->getAttributes(Consumer::class, ReflectionAttribute::IS_INSTANCEOF);
-
-                if (empty($attributes)) {
-                    continue;
-                }
-
-                $consumerInstance = new $consumerClass();
-                $consumerAttribute = $attributes[0]->newInstance();
-
-                // Skip if consumer is disabled
-                if (!$consumerAttribute->enable) {
-                    continue;
-                }
-
-                // Start the consumer in the worker process
-                $this->amqpManager->startConsumerProcess($consumerInstance, $consumerAttribute, $poolName);
-            } catch (\Throwable $e) {
-                // Log error but continue with other consumers
-                error_log("Error starting consumer process for $consumerClass: " . $e->getMessage());
             }
         }
     }
@@ -180,7 +142,10 @@ class AMQPBootstrap
             return $this->resolveBasePath($path);
         }, $paths);
 
-        return ClassScanner::findConsumerClasses($absolutePaths);
+        $classes = ClassScanner::findConsumerClasses($absolutePaths);
+
+        // Remove duplicates by using the class name as the key
+        return array_unique($classes);
     }
 
     /**
@@ -196,7 +161,10 @@ class AMQPBootstrap
             return $this->resolveBasePath($path);
         }, $paths);
 
-        return ClassScanner::findProducerClasses($absolutePaths);
+        $classes = ClassScanner::findProducerClasses($absolutePaths);
+
+        // Remove duplicates by using the class name as the key
+        return array_unique($classes);
     }
 
     /**

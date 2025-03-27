@@ -30,6 +30,11 @@ class MessageProcessor
     private array $producerClasses = [];
 
     /**
+     * @var array<string, Consumer> Store consumer class attributes without instantiating
+     */
+    private array $consumerClasses = [];
+
+    /**
      * @var TaskManager The task manager
      */
     private TaskManager $taskManager;
@@ -155,31 +160,31 @@ class MessageProcessor
      * Produce a message
      * This method now ensures it's running in a coroutine
      */
-    public function produce(object $producerMessage, string $poolName = 'default'): bool
+    public function produce(object $producerMessage, string $connectionName = 'default'): bool
     {
         // Check if already in a coroutine
         if (!Coroutine::getCid()) {
             // If not in a coroutine, create one
             $result = [false];
-            Coroutine\run(function () use ($producerMessage, $poolName, &$result) {
-                $result[0] = $this->doProduceInCoroutine($producerMessage, $poolName);
+            Coroutine\run(function () use ($producerMessage, $connectionName, &$result) {
+                $result[0] = $this->doProduceInCoroutine($producerMessage, $connectionName);
             });
 
             return $result[0];
         }
 
         // Already in a coroutine
-        return $this->doProduceInCoroutine($producerMessage, $poolName);
+        return $this->doProduceInCoroutine($producerMessage, $connectionName);
     }
 
-    private function doProduceInCoroutine(object $producerMessage, string $poolName): bool
+    private function doProduceInCoroutine(object $producerMessage, string $connectionName): bool
     {
         $connection = null;
         $channel = null;
 
         try {
-            // Create direct connection instead of using pool
-            $connection = AMQP::createConnection($poolName);
+            // Create a direct connection
+            $connection = AMQP::createConnection($connectionName);
             $channel = $connection->channel();
 
             // Get producer attribute

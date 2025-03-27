@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
+use InvalidArgumentException;
 use ReflectionClass;
+use Throwable;
 
 /**
  * Service for producing AMQP messages
@@ -17,17 +19,17 @@ class ProducerService
     private AMQPManager $amqpManager;
 
     /**
-     * @var string Default connection pool name
+     * @var string Default connection name
      */
-    private string $defaultPool;
+    private string $defaultConnectionName;
 
     /**
      * Constructor
      */
-    public function __construct(AMQPManager $amqpManager, string $defaultPool = 'default')
+    public function __construct(AMQPManager $amqpManager, string $defaultConnectionName = 'default')
     {
         $this->amqpManager = $amqpManager;
-        $this->defaultPool = $defaultPool;
+        $this->defaultConnectionName = $defaultConnectionName;
     }
 
     /**
@@ -36,13 +38,13 @@ class ProducerService
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
      * @param int $delayMs Delay in milliseconds
-     * @param string|null $poolName Optional connection pool name
+     * @param string|null $connectionName Optional connection name
      * @return bool Success state
      */
-    public function produceWithDelay(string $producerClass, array $args = [], int $delayMs = 1000, ?string $poolName = null): bool
+    public function produceWithDelay(string $producerClass, array $args = [], int $delayMs = 1000, ?string $connectionName = null): bool
     {
-        // Use default pool if not specified
-        $poolName ??= $this->defaultPool;
+        // Use default connection if not specified
+        $connectionName ??= $this->defaultConnectionName;
 
         // Create producer instance
         $reflection = new ReflectionClass($producerClass);
@@ -52,7 +54,7 @@ class ProducerService
         $producer->setDelayMs($delayMs);
 
         // Produce the message
-        return $this->amqpManager->produce($producer, $poolName);
+        return $this->amqpManager->produce($producer, $connectionName);
     }
 
     /**
@@ -60,27 +62,27 @@ class ProducerService
      *
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
-     * @param string|null $poolName Optional connection pool name
+     * @param string|null $connectionName Optional connection name
      * @return bool Success state
      */
-    public function produce(string $producerClass, array $args = [], ?string $poolName = null): bool
+    public function produce(string $producerClass, array $args = [], ?string $connectionName = null): bool
     {
-        // Use default pool if not specified
-        $poolName ??= $this->defaultPool;
+        // Use default connection if not specified
+        $connectionName ??= $this->defaultConnectionName;
 
         try {
             // Verify that the producer class exists and has the Producer attribute
             if (!class_exists($producerClass)) {
-                throw new \InvalidArgumentException("Producer class $producerClass does not exist");
+                throw new InvalidArgumentException("Producer class $producerClass does not exist");
             }
 
             // Create producer instance with the provided arguments
             $reflection = new ReflectionClass($producerClass);
             $producer = $reflection->newInstanceArgs($args);
 
-            // Pass to message processor - let it decide if a coroutine is needed
-            return $this->amqpManager->produce($producer, $poolName);
-        } catch (\Throwable $e) {
+            // Pass to message processor
+            return $this->amqpManager->produce($producer, $connectionName);
+        } catch (Throwable $e) {
             // Log error
             error_log("Error producing message: " . $e->getMessage());
             return false;

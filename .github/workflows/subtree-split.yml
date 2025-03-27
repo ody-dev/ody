@@ -29,6 +29,7 @@ jobs:
           - { name: "task", path: "packages/task" }
           - { name: "websocket", path: "packages/websocket" }
           - { name: "connection-pool", path: "packages/connection-pool" }
+          - { name: "amqp", path: "packages/amqp" }
 
     steps:
       - uses: actions/checkout@v3

@@ -21,7 +21,7 @@ class AMQPConsumerProcess extends StandardProcess
 {
     private string $consumerClass;
     private Consumer $consumerAttribute;
-    private string $poolName;
+    private string $connectionName;
     private TaskManager $taskManager;
     private ?AMQPChannel $channel = null;
     private ?AMQPStreamConnection $connection = null;
@@ -36,7 +36,7 @@ class AMQPConsumerProcess extends StandardProcess
 
         $this->consumerClass = $args['consumer_class'];
         $this->consumerAttribute = $args['consumer_attribute'];
-        $this->poolName = $args['pool_name'];
+        $this->connectionName = $args['connection_name'];
         $this->taskManager = $args['task_manager'];
     }
 
@@ -74,7 +74,7 @@ class AMQPConsumerProcess extends StandardProcess
     }
 
     /**
-     * Start the consumer with direct connection (bypassing pool)
+     * Start the consumer with direct connection
      */
     private function startConsumer(): void
     {
@@ -82,27 +82,8 @@ class AMQPConsumerProcess extends StandardProcess
             // Create the consumer instance
             $consumer = new $this->consumerClass();
 
-            // Get config for this pool
-            $config = $this->getConnectionConfig();
-
-            // Create direct connection rather than using the pool
-            $this->connection = new AMQPStreamConnection(
-                host: $config['host'] ?? 'localhost',
-                port: $config['port'] ?? 5672,
-                user: $config['user'] ?? 'guest',
-                password: $config['password'] ?? 'guest',
-                vhost: $config['vhost'] ?? '/',
-                insist: $config['params']['insist'] ?? false,
-                login_method: $config['params']['login_method'] ?? 'AMQPLAIN',
-                login_response: null,
-                locale: $config['params']['locale'] ?? 'en_US',
-                connection_timeout: $config['params']['connection_timeout'] ?? 3.0,
-                read_write_timeout: $config['params']['read_write_timeout'] ?? 3.0,
-                context: null,
-                keepalive: $config['params']['keepalive'] ?? false,
-                heartbeat: $config['params']['heartbeat'] ?? 0
-            );
-
+            // Create direct connection
+            $this->connection = AMQP::createConnection($this->connectionName);
             $this->channel = $this->connection->channel();
 
             // Set QoS if specified
@@ -177,38 +158,6 @@ class AMQPConsumerProcess extends StandardProcess
             // If we should restart, exit with non-zero code so the process manager will restart it
             exit(1);
         }
-    }
-
-    /**
-     * Get connection configuration for this pool
-     */
-    private function getConnectionConfig(): array
-    {
-        // Access the stored configuration directly
-        global $container;
-        $config = config('amqp');
-
-        if (isset($config[$this->poolName]) && is_array($config[$this->poolName])) {
-            return $config[$this->poolName];
-        }
-
-        // Default configuration
-        return [
-            'host' => 'localhost',
-            'port' => 5672,
-            'user' => 'guest',
-            'password' => 'guest',
-            'vhost' => '/',
-            'params' => [
-                'connection_timeout' => 3.0,
-                'read_write_timeout' => 3.0,
-                'heartbeat' => 60,
-                'keepalive' => true,
-                'insist' => false,
-                'login_method' => 'AMQPLAIN',
-                'locale' => 'en_US',
-            ],
-        ];
     }
 
     private function processAmqpMessage(object $consumer, AMQPMessage $message): void

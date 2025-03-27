@@ -11,14 +11,13 @@
   ],
   "require": {
     "php": ">=8.3",
-    "ody/connection-pool": "^0.1.0",
     "ody/task": "^0.1.0",
     "ody/process": "^0.1.0",
     "php-amqplib/php-amqplib": "^3.7"
   },
   "autoload": {
     "psr-4": {
-      "ODY\\AMQP\\": "src/"
+      "Ody\\AMQP\\": "src/"
     }
   }
 }

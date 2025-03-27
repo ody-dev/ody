@@ -2,7 +2,7 @@
 
 namespace Ody\AMQP;
 
-use AMQPChannel;
+use PhpAmqpLib\Channel\AMQPChannel;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\Process\ProcessManager;
 use Ody\Task\Task;
@@ -13,8 +13,8 @@ class AMQPManager
 {
     public function __construct(
         private MessageProcessor $messageProcessor,
-        private TaskManager $taskManager,
-        private ProcessManager $processManager,
+        private TaskManager      $taskManager,
+        private ProcessManager   $processManager,
     )
     {
     }
@@ -24,7 +24,7 @@ class AMQPManager
      * The process is created now, but will wait for the server to start
      * before consuming messages
      */
-    public function forkConsumerProcess(string $consumerClass, Consumer $consumerAttribute, string $poolName = 'default'): void
+    public function forkConsumerProcess(string $consumerClass, Consumer $consumerAttribute, string $connectionName = 'default'): void
     {
         // Create a process for this consumer but don't instantiate the consumer yet
         $this->processManager->execute(
@@ -32,7 +32,7 @@ class AMQPManager
             args: [
                 'consumer_class' => $consumerClass,
                 'consumer_attribute' => $consumerAttribute,
-                'pool_name' => $poolName,
+                'connection_name' => $connectionName,
                 'exchange' => $consumerAttribute->exchange,
                 'routing_key' => $consumerAttribute->routingKey,
                 'queue' => $consumerAttribute->queue,
@@ -60,8 +60,8 @@ class AMQPManager
     /**
      * Produce a message
      */
-    public function produce(object $producerMessage, string $poolName = 'default'): bool
+    public function produce(object $producerMessage, string $connectionName = 'default'): bool
     {
-        return $this->messageProcessor->produce($producerMessage, $poolName);
+        return $this->messageProcessor->produce($producerMessage, $connectionName);
     }
 }

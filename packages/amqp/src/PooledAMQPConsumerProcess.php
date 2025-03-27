@@ -5,6 +5,7 @@ namespace Ody\AMQP\Providers;
 use Ody\AMQP\AMQPChannelPool;
 use Ody\AMQP\AMQPConnectionPool;
 use Ody\AMQP\AMQPConsumerProcess;
+use PhpAmqpLib\Message\AMQPMessage;
 use Swoole\Timer;
 
 /**
@@ -77,14 +78,14 @@ class PooledAMQPConsumerProcess extends AMQPConsumerProcess
                 }
             );
 
-            error_log("[AMQP] Consumer setup complete for {$this->consumerAttribute->queue}");
+            logger()->error("[AMQP] Consumer setup complete for {$this->consumerAttribute->queue}");
             $this->reconnecting = false;
             $this->reconnectAttempts = 0;
             $this->lastActivityTime = time(); // Reset activity time
 
         } catch (\Throwable $e) {
-            error_log("[AMQP] Error during connection setup: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->error("[AMQP] Error during connection setup: " . $e->getMessage());
+            logger()->error($e->getTraceAsString());
 
             // Clean up any partial resources
             $this->cleanupResources();

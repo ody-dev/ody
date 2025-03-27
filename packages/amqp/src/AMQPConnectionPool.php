@@ -121,7 +121,7 @@ class AMQPConnectionPool
                     }
                 } catch (\Throwable $e) {
                     // Ignore channel closing errors
-                    error_log("[AMQP] Error closing channel: " . $e->getMessage());
+                    logger()->error("[AMQP] Error closing channel: " . $e->getMessage());
                 }
             }
 
@@ -131,7 +131,7 @@ class AMQPConnectionPool
             }
         } catch (\Throwable $e) {
             // Log but continue
-            error_log("[AMQP] Error closing connection: " . $e->getMessage());
+            logger()->error("[AMQP] Error closing connection: " . $e->getMessage());
         } finally {
             // Remove from pool regardless of errors
             unset(self::$connections[$connectionName]);

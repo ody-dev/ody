@@ -117,7 +117,7 @@ class AMQPChannelPool
                 }
             } catch (\Throwable $e) {
                 // Ignore errors during cleanup
-                error_log("[AMQP] Error closing channel: " . $e->getMessage());
+                logger()->error("[AMQP] Error closing channel: " . $e->getMessage());
             }
         }
 

@@ -65,7 +65,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerConsumerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                logger()->debug("Error registering consumer $class: " . $e->getMessage());
+                logger()->error("Error registering consumer $class: " . $e->getMessage());
             }
         }
 
@@ -76,7 +76,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerProducerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other producers
-                logger()->debug("Error registering producer $class: " . $e->getMessage());
+                logger()->error("Error registering producer $class: " . $e->getMessage());
             }
         }
     }
@@ -124,7 +124,7 @@ class AMQPBootstrap
                 $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $connectionName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                logger()->debug("Error forking consumer process for $consumerClass: " . $e->getMessage());
+                logger()->error("Error forking consumer process for $consumerClass: " . $e->getMessage());
             }
         }
     }

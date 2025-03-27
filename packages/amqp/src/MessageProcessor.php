@@ -238,8 +238,8 @@ class MessageProcessor
             return true;
         } catch (\Throwable $e) {
             // Log the error
-            error_log("Error producing AMQP message: " . $e->getMessage());
-            error_log($e->getTraceAsString());
+            logger()->error("Error producing AMQP message: " . $e->getMessage());
+            logger()->error($e->getTraceAsString());
 
             // Clean up
             try {

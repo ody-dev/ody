@@ -65,7 +65,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerConsumerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                error_log("Error registering consumer $class: " . $e->getMessage());
+                logger()->debug("Error registering consumer $class: " . $e->getMessage());
             }
         }
 
@@ -76,7 +76,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerProducerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other producers
-                error_log("Error registering producer $class: " . $e->getMessage());
+                logger()->debug("Error registering producer $class: " . $e->getMessage());
             }
         }
     }
@@ -90,7 +90,7 @@ class AMQPBootstrap
         $connectionName = 'default';
         $consumerClasses = $this->findConsumerClasses();
 
-        error_log("[AMQP] Found " . count($consumerClasses) . " consumer classes");
+        logger()->debug("[AMQP] Found " . count($consumerClasses) . " consumer classes");
 
         foreach ($consumerClasses as $consumerClass) {
             try {
@@ -111,20 +111,20 @@ class AMQPBootstrap
                 // Skip if we already forked a process for this queue
                 $queueKey = $consumerAttribute->exchange . ':' . $consumerAttribute->queue;
                 if (isset($this->forkedConsumers[$queueKey])) {
-                    error_log("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
+                    logger()->debug("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
                     continue;
                 }
 
                 // Mark this queue as forked
                 $this->forkedConsumers[$queueKey] = true;
 
-                error_log("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
+                logger()->debug("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
 
                 // Fork consumer process with necessary information
                 $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $connectionName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                error_log("Error forking consumer process for $consumerClass: " . $e->getMessage());
+                logger()->debug("Error forking consumer process for $consumerClass: " . $e->getMessage());
             }
         }
     }

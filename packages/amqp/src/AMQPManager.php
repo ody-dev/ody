@@ -2,11 +2,10 @@
 
 namespace Ody\AMQP;
 
-use PhpAmqpLib\Channel\AMQPChannel;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\Process\ProcessManager;
-use Ody\Task\Task;
 use Ody\Task\TaskManager;
+use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
 use Throwable;
 
@@ -18,9 +17,9 @@ class AMQPManager
     private array $activeConsumerProcesses = [];
 
     public function __construct(
-        private MessageProcessor $messageProcessor,
-        private TaskManager      $taskManager,
-        private ProcessManager   $processManager,
+        protected MessageProcessor $messageProcessor,
+        protected TaskManager      $taskManager,
+        private ProcessManager     $processManager,
     ) {}
 
     /**
@@ -41,16 +40,16 @@ class AMQPManager
             $isRunning = $this->isPidRunning($pid);
 
             if ($isRunning) {
-                error_log("[AMQP] Consumer process for queue {$consumerAttribute->queue} already exists");
+                logger()->debug("[AMQP] Consumer process for queue {$consumerAttribute->queue} already exists");
                 return;
             }
 
             // Process is dead, remove it from tracking
-            error_log("[AMQP] Removing dead consumer process for queue {$consumerAttribute->queue}");
+            logger()->debug("[AMQP] Removing dead consumer process for queue {$consumerAttribute->queue}");
             unset($this->activeConsumerProcesses[$queueKey]);
         }
 
-        error_log("[AMQP] Forking consumer process for queue {$consumerAttribute->queue} with class {$consumerClass}");
+        logger()->debug("[AMQP] Forking consumer process for queue {$consumerAttribute->queue} with class {$consumerClass}");
 
         // Create a process for this consumer but don't instantiate the consumer yet
         $process = $this->processManager->execute(
@@ -83,11 +82,11 @@ class AMQPManager
     public function processMessage(object $consumer, AMQPMessage $message, AMQPChannel $channel): void
     {
         // Create a task to process the message
-        Task::execute(AMQPMessageTask::class, [
-            'consumer' => $consumer,
-            'message' => $message,
-            'channel' => $channel,
-        ], Task::PRIORITY_HIGH);
+//        Task::execute(AMQPMessageTask::class, [
+//            'consumer' => $consumer,
+//            'message' => $message,
+//            'channel' => $channel,
+//        ], Task::PRIORITY_HIGH);
     }
 
     /**
@@ -124,7 +123,7 @@ class AMQPManager
                 return count($output) > 0;
             }
         } catch (Throwable $e) {
-            error_log("[AMQP] Error checking process status: " . $e->getMessage());
+            logger()->debug("[AMQP] Error checking process status: " . $e->getMessage());
             return false;
         }
     }

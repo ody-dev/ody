@@ -44,4 +44,9 @@ abstract class ProducerMessage
     {
         return $this->properties;
     }
+
+    public function getPayloadJson(): string
+    {
+        return json_encode($this->payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
 }

@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
+use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
-use Swoole\Coroutine;
 
+/**
+ * Modified AMQP class that uses connection and channel pools
+ */
 class AMQP
 {
     /**
@@ -15,8 +18,21 @@ class AMQP
     private static ?ProducerService $producerService = null;
 
     /**
+     * @var \Psr\Container\ContainerInterface|null
+     */
+    private static $container = null;
+
+    /**
+     * Register the container for dependency resolution
+     */
+    public static function setContainer($container): void
+    {
+        self::$container = $container;
+    }
+
+    /**
      * Publish a message using a producer class
-     * Ensures it runs in a coroutine context
+     * Ensures it runs in a coroutine context and uses connection pooling
      *
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
@@ -26,14 +42,14 @@ class AMQP
     public static function publish(string $producerClass, array $args = [], ?string $connectionName = null): bool
     {
         // Check if we're in a coroutine context
-        if (!Coroutine::getCid()) {
-            // If not, create a coroutine
-            $result = [false];
-            Coroutine::create(function () use ($producerClass, $args, $connectionName, &$result) {
-                $result[0] = self::getProducerService()->produce($producerClass, $args, $connectionName);
-            });
-            return $result[0];
-        }
+//        if (!Coroutine::getCid()) {
+//            // If not, create a coroutine
+//            $result = [false];
+//            Coroutine::create(function () use ($producerClass, $args, $connectionName, &$result) {
+//                $result[0] = self::getProducerService()->produce($producerClass, $args, $connectionName);
+//            });
+//            return $result[0];
+//        }
 
         // Already in a coroutine
         return self::getProducerService()->produce($producerClass, $args, $connectionName);
@@ -45,11 +61,8 @@ class AMQP
     private static function getProducerService(): ProducerService
     {
         if (self::$producerService === null) {
-            // Use container to resolve dependencies
-            global $container;
-
-            if (isset($container) && method_exists($container, 'get')) {
-                self::$producerService = $container->get(ProducerService::class);
+            if (self::$container !== null && method_exists(self::$container, 'get')) {
+                self::$producerService = self::$container->get(ProducerService::class);
             } else {
                 // Fallback to manual instantiation
                 self::$producerService = new ProducerService(
@@ -67,7 +80,7 @@ class AMQP
 
     /**
      * Publish a delayed message
-     * Ensures it runs in a coroutine context
+     * Ensures it runs in a coroutine context and uses connection pooling
      *
      * @param string $producerClass Producer class name
      * @param array $args Constructor arguments for the producer
@@ -78,14 +91,14 @@ class AMQP
     public static function publishDelayed(string $producerClass, array $args = [], int $delayMs = 1000, ?string $connectionName = null): bool
     {
         // Check if we're in a coroutine context
-        if (!Coroutine::getCid()) {
-            // If not, create a coroutine
-            $result = [false];
-            Coroutine::create(function () use ($producerClass, $args, $delayMs, $connectionName, &$result) {
-                $result[0] = self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $connectionName);
-            });
-            return $result[0];
-        }
+//        if (!Coroutine::getCid()) {
+//            // If not, create a coroutine
+//            $result = [false];
+//            Coroutine::create(function () use ($producerClass, $args, $delayMs, $connectionName, &$result) {
+//                $result[0] = self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $connectionName);
+//            });
+//            return $result[0];
+//        }
 
         // Already in a coroutine
         return self::getProducerService()->produceWithDelay($producerClass, $args, $delayMs, $connectionName);
@@ -101,6 +114,7 @@ class AMQP
 
     /**
      * Create a direct connection to RabbitMQ
+     * This now returns a pooled connection instead of creating a new one
      *
      * @param string $connectionName Name of the connection configuration to use
      * @return AMQPStreamConnection
@@ -123,10 +137,30 @@ class AMQP
             connection_timeout: ($connectionConfig['params']['connection_timeout'] ?? 3.0),
             read_write_timeout: ($connectionConfig['params']['read_write_timeout'] ?? 3.0),
             context: null,
-//            keepalive: ($connectionConfig['params']['keepalive'] ?? false),
-//            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 0),
-            heartbeat: 60, // Set a reasonable heartbeat value
-            keepalive: true, // Enable TCP keepalive
+            keepalive: true, // Set a reasonable heartbeat value
+            heartbeat: 60, // Enable TCP keepalive
         );
+    }
+
+    /**
+     * Get a pooled connection
+     *
+     * @param string $connectionName Connection configuration name
+     * @return AMQPStreamConnection
+     */
+    public static function getPooledConnection(string $connectionName = 'default'): AMQPStreamConnection
+    {
+        return AMQPConnectionPool::getConnection($connectionName);
+    }
+
+    /**
+     * Get a pooled channel
+     *
+     * @param string $connectionName Connection configuration name
+     * @return AMQPChannel
+     */
+    public static function getPooledChannel(string $connectionName = 'default'): AMQPChannel
+    {
+        return AMQPChannelPool::getChannel($connectionName);
     }
 }

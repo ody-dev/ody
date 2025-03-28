@@ -45,7 +45,7 @@ class CommandProcessor implements Processor, TopicSubscriberInterface
             return Result::ACK;
         } catch (\Throwable $e) {
             // Log the error
-            error_log("Error processing command: " . $e->getMessage());
+//            error_log("Error processing command: " . $e->getMessage());
 
             // Decide if we want to requeue or reject the message
             return Result::REJECT;

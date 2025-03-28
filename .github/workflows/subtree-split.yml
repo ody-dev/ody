@@ -30,6 +30,7 @@ jobs:
           - { name: "websocket", path: "packages/websocket" }
           - { name: "connection-pool", path: "packages/connection-pool" }
           - { name: "amqp", path: "packages/amqp" }
+          - { name: "cqrs", path: "packages/cqrs" }
 
     steps:
       - uses: actions/checkout@v3

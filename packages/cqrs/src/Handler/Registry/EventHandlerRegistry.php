@@ -23,6 +23,7 @@ class EventHandlerRegistry
         string $handlerMethod
     ): void
     {
+//        error_log('EventHandlerRegistry::registerHandler: ' . $eventClass);
         if (!isset($this->handlers[$eventClass])) {
             $this->handlers[$eventClass] = [];
         }

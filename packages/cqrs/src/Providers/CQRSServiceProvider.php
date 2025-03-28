@@ -34,7 +34,10 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        error_log('boot');
+        if ($this->isRunningInConsole()) {
+            return;
+        }
+
         // Register handlers from configured directories
         $this->registerHandlers();
     }
@@ -46,53 +49,54 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        error_log('register');
+        if ($this->isRunningInConsole()) {
+            return;
+        }
+
         // Register the Configuration
         $this->container->singleton(Configuration::class, function () {
             return new Configuration(config('cqrs'));
         });
 
-        $this->container->singleton(ProducerInterface::class, function () {
-            $client = new SimpleClient('amqp://admin:password@localhost:5672'); // TODO: hardcoded for now
-            $client->setupBroker();
-            return $client->getProducer();
-        });
-
-        $this->container->singleton(CommandProcessor::class);
-
-        // Register the handler registries
+        // Register the registries first since they have no dependencies
         $this->container->singleton(CommandHandlerRegistry::class);
         $this->container->singleton(QueryHandlerRegistry::class);
         $this->container->singleton(EventHandlerRegistry::class);
 
-        // Register the handler resolvers
-        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
-            return new CommandHandlerResolver(
-                $app,
-                $app->make(EventBusInterface::class)
-            );
-        });
+        // Register the query handler resolver
         $this->container->singleton(QueryHandlerResolver::class);
 
-        // Register the buses
-        $this->container->singleton(CommandBusInterface::class, function ($app) {
-            return new EnqueueCommandBus(
-                $app->make(ProducerInterface::class),
-                $app->make(CommandHandlerRegistry::class),
-                $app->make(CommandHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
-            );
+        // Register SimpleClient with minimal configuration
+        $this->container->singleton(SimpleClient::class, function () {
+            return new SimpleClient([
+                'transport' => [
+                    'dsn' => config('cqrs.dsn'),
+                    'vhost' => '/',
+                    'lazy' => true
+                ],
+                'client' => [
+                    'router_topic' => 'ody.router_topic',
+                    'router_queue' => 'ody.router_queue',
+                    'default_queue' => 'ody.default_queue',
+                    'redelivered_delay_time' => 0,
+                ],
+            ]);
         });
 
-        $this->container->singleton(QueryBusInterface::class, function ($app) {
-            return new EnqueueQueryBus(
-                $app->make(ProducerInterface::class),
-                $app->make(QueryHandlerRegistry::class),
-                $app->make(QueryHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
-            );
+        // Register ProducerInterface as a simple proxy to SimpleClient
+        $this->container->singleton(ProducerInterface::class, function ($app) {
+            return $app->make(SimpleClient::class)->getProducer();
+        });
+
+        // Break circular dependency with EventBus
+        // First register a very simple EventBus that does nothing
+        $this->container->singleton('simple.event.bus', function () {
+            return new class implements EventBusInterface {
+                public function publish(object $event): void
+                {
+                    // Do nothing, this is just a placeholder
+                }
+            };
         });
 
         $this->container->singleton(EventBusInterface::class, function ($app) {
@@ -103,6 +107,97 @@ class CQRSServiceProvider extends ServiceProvider
                 $app->make(Configuration::class)
             );
         });
+
+        // Now register CommandHandlerResolver with the simple EventBus
+        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
+            return new CommandHandlerResolver(
+                $app,
+                $app->make(EventBusInterface::class)
+            );
+        });
+
+        // Register command processor
+        $this->container->singleton(CommandProcessor::class, function ($app) {
+            return new CommandProcessor(
+                $app->make(CommandHandlerRegistry::class),
+                $app->make(CommandHandlerResolver::class),
+                $app
+            );
+        });
+
+        // Register the buses WITHOUT any complex setup
+        $this->container->singleton(EnqueueCommandBus::class, function ($app) {
+            return new EnqueueCommandBus(
+                $app->make(ProducerInterface::class),
+                $app->make(CommandHandlerRegistry::class),
+                $app->make(CommandHandlerResolver::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
+
+        $this->container->singleton(EnqueueQueryBus::class, function ($app) {
+            return new EnqueueQueryBus(
+                $app->make(ProducerInterface::class),
+                $app->make(QueryHandlerRegistry::class),
+                $app->make(QueryHandlerResolver::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
+
+        $this->container->singleton(EnqueueEventBus::class, function ($app) {
+            return new EnqueueEventBus(
+                $app->make(ProducerInterface::class),
+                $app->make(EventHandlerRegistry::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
+
+        // Register the interfaces using the implementations
+        $this->container->singleton(CommandBusInterface::class, function ($app) {
+            return $app->make(EnqueueCommandBus::class);
+        });
+
+        $this->container->singleton(QueryBusInterface::class, function ($app) {
+            return $app->make(EnqueueQueryBus::class);
+        });
+
+        $this->setupBroker();
+    }
+
+    protected function setupBroker(): void
+    {
+        $this->container->resolving(SimpleClient::class, function (SimpleClient $client, $app) {
+            static $setup = false;
+
+            if (!$setup) {
+                $processor = $app->make(CommandProcessor::class);
+                $client->bindCommand('commands', $processor);
+                $client->setupBroker();
+                $setup = true;
+            }
+
+            return $client;
+        });
+    }
+
+    protected function setupCommandProcessor(SimpleClient $client, CommandProcessor $processor)
+    {
+        // First, check if this binding has already been done
+        static $setup = false;
+        if ($setup) {
+            return;
+        }
+
+        // Bind the processor
+        $client->bindCommand('commands', $processor);
+
+        // Only do broker setup when actually needed
+        $client->setupBroker();
+
+        $setup = true;
     }
 
     /**
@@ -220,7 +315,7 @@ class CQRSServiceProvider extends ServiceProvider
             }
         } catch (\Throwable $e) {
             // Log error but continue scanning
-            $this->container->make('log')->error("Error scanning class {$className}: " . $e->getMessage());
+            logger()->error("Error scanning class {$className}: " . $e->getMessage());
         }
     }
 

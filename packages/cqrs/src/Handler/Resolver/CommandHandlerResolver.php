@@ -8,18 +8,15 @@ use Ody\CQRS\Interfaces\EventBus;
 class CommandHandlerResolver extends HandlerResolver
 {
     /**
-     * @var EventBus|null
-     */
-    protected ?EventBus $eventBus;
-
-    /**
      * @param Container $container
      * @param EventBus|null $eventBus
      */
-    public function __construct(Container $container, ?EventBus $eventBus = null)
+    public function __construct(
+        Container         $container,
+        private ?EventBus $eventBus = null
+    )
     {
         parent::__construct($container);
-        $this->eventBus = $eventBus;
     }
 
     /**
@@ -44,8 +41,10 @@ class CommandHandlerResolver extends HandlerResolver
             $parameters[1]->getType() &&
             is_a(EventBus::class, $parameters[1]->getType()->getName(), true);
 
-        if ($expectsEventBus && $this->eventBus) {
+        if ($expectsEventBus) {
             return function ($command) use ($handler, $handlerMethod) {
+                // Get the EventBus lazily from the container when needed
+//                $eventBus = $this->container->make(EventBus::class);
                 return $handler->$handlerMethod($command, $this->eventBus);
             };
         }

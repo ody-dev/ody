@@ -81,26 +81,32 @@ class EnqueueCommandBus implements CommandBusInterface
         // Get the handler information
         $handlerInfo = $this->handlerRegistry->getHandlerFor($commandClass);
 
-        if ($this->configuration->isAsyncEnabled() && $this->configuration->shouldCommandRunAsync($commandClass)) {
-            // Send to queue for async processing
-            $this->producer->sendCommand(
-                $this->configuration->getCommandTopic($commandClass),
-                $command
-            );
-
-            return;
-        }
-
-        // Handle synchronously
         try {
-            $handler = $this->handlerResolver->resolveHandler($handlerInfo);
-            $handler($command);
+            if ($this->configuration->isAsyncEnabled() && $this->configuration->shouldCommandRunAsync($commandClass)) {
+                // Send to queue for async processing
+                $this->producer->sendCommand(
+                    $this->configuration->getCommandTopic($commandClass),
+                    $command
+                );
+            } else {
+                // Handle synchronously if async is disabled
+                $handler = $this->handlerResolver->resolveHandler($handlerInfo);
+                $handler($command);
+            }
         } catch (\Throwable $e) {
-            throw new CommandHandlerException(
-                sprintf('Error handling command %s: %s', $commandClass, $e->getMessage()),
-                0,
-                $e
-            );
+            // If sending to queue fails, handle synchronously as fallback
+//            error_log("Error sending command to queue: " . $e->getMessage() . ". Falling back to sync processing.");
+
+            try {
+                $handler = $this->handlerResolver->resolveHandler($handlerInfo);
+                $handler($command);
+            } catch (\Throwable $e) {
+                throw new CommandHandlerException(
+                    sprintf('Error handling command %s: %s', $commandClass, $e->getMessage()),
+                    0,
+                    $e
+                );
+            }
         }
     }
 }

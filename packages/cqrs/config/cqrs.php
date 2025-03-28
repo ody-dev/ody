@@ -11,7 +11,7 @@ return [
     | using message queues.
     |
     */
-    'async_enabled' => env('CQRS_ASYNC_ENABLED', true),
+    'async_enabled' => env('CQRS_ASYNC_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -61,7 +61,7 @@ return [
     |
     */
     'event_topics' => [
-        // Example: App\Events\PaymentProcessedEvent::class => 'payment_events',
+        \App\Events\UserWasCreated::class => ['userWasCreated'],
     ],
 
     /*
@@ -73,7 +73,8 @@ return [
     |
     */
     'handler_paths' => [
-        // Example: app_path('Services'),
+        base_path('/app/Services'),
+        base_path('/app/Events'),
     ],
 
     /*
@@ -88,4 +89,6 @@ return [
         'enabled' => env('CQRS_SWOOLE_ENABLED', true),
         'max_coroutines' => env('CQRS_SWOOLE_MAX_COROUTINES', 3000),
     ],
+
+    'dsn' => env('CQRS_DSN', 'amqp://admin:password@localhost:5672'),
 ];

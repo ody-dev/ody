@@ -2,7 +2,7 @@
 
 namespace Ody\CQRS\Handler\Resolver;
 
-use Illuminate\Contracts\Container\Container;
+use Ody\Container\Container;
 
 abstract class HandlerResolver
 {

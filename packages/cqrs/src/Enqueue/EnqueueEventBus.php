@@ -3,7 +3,7 @@
 namespace Ody\CQRS\Enqueue;
 
 use Enqueue\Client\ProducerInterface;
-use Illuminate\Contracts\Container\Container;
+use Ody\Container\Container;
 use Ody\CQRS\Handler\Registry\EventHandlerRegistry;
 use Ody\CQRS\Interfaces\EventBus as EventBusInterface;
 

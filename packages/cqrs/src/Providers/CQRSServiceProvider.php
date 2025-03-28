@@ -3,9 +3,11 @@
 namespace Ody\CQRS\Providers;
 
 use Enqueue\Client\ProducerInterface;
+use Enqueue\SimpleClient\SimpleClient;
 use Ody\CQRS\Attributes\CommandHandler;
 use Ody\CQRS\Attributes\EventHandler;
 use Ody\CQRS\Attributes\QueryHandler;
+use Ody\CQRS\Enqueue\CommandProcessor;
 use Ody\CQRS\Enqueue\Configuration;
 use Ody\CQRS\Enqueue\EnqueueCommandBus;
 use Ody\CQRS\Enqueue\EnqueueEventBus;
@@ -35,6 +37,72 @@ class CQRSServiceProvider extends ServiceProvider
         error_log('boot');
         // Register handlers from configured directories
         $this->registerHandlers();
+    }
+
+    /**
+     * Register the CQRS services.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        error_log('register');
+        // Register the Configuration
+        $this->container->singleton(Configuration::class, function () {
+            return new Configuration(config('cqrs'));
+        });
+
+        $this->container->singleton(ProducerInterface::class, function () {
+            $client = new SimpleClient('amqp://admin:password@localhost:5672'); // TODO: hardcoded for now
+            $client->setupBroker();
+            return $client->getProducer();
+        });
+
+        $this->container->singleton(CommandProcessor::class);
+
+        // Register the handler registries
+        $this->container->singleton(CommandHandlerRegistry::class);
+        $this->container->singleton(QueryHandlerRegistry::class);
+        $this->container->singleton(EventHandlerRegistry::class);
+
+        // Register the handler resolvers
+        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
+            return new CommandHandlerResolver(
+                $app,
+                $app->make(EventBusInterface::class)
+            );
+        });
+        $this->container->singleton(QueryHandlerResolver::class);
+
+        // Register the buses
+        $this->container->singleton(CommandBusInterface::class, function ($app) {
+            return new EnqueueCommandBus(
+                $app->make(ProducerInterface::class),
+                $app->make(CommandHandlerRegistry::class),
+                $app->make(CommandHandlerResolver::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
+
+        $this->container->singleton(QueryBusInterface::class, function ($app) {
+            return new EnqueueQueryBus(
+                $app->make(ProducerInterface::class),
+                $app->make(QueryHandlerRegistry::class),
+                $app->make(QueryHandlerResolver::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
+
+        $this->container->singleton(EventBusInterface::class, function ($app) {
+            return new EnqueueEventBus(
+                $app->make(ProducerInterface::class),
+                $app->make(EventHandlerRegistry::class),
+                $app,
+                $app->make(Configuration::class)
+            );
+        });
     }
 
     /**
@@ -110,47 +178,6 @@ class CQRSServiceProvider extends ServiceProvider
     }
 
     /**
-     * Get the class name from a file
-     *
-     * @param string $file
-     * @return string|null
-     */
-    protected function getClassNameFromFile(string $file): ?string
-    {
-        $content = file_get_contents($file);
-        $tokens = token_get_all($content);
-        $namespace = '';
-        $className = '';
-
-        for ($i = 0; $i < count($tokens); $i++) {
-            if ($tokens[$i][0] === T_NAMESPACE) {
-                for ($j = $i + 1; $j < count($tokens); $j++) {
-                    if ($tokens[$j][0] === T_NAME_QUALIFIED) {
-                        $namespace = $tokens[$j][1];
-                        break;
-                    }
-                }
-            }
-
-            if ($tokens[$i][0] === T_CLASS) {
-                for ($j = $i + 1; $j < count($tokens); $j++) {
-                    if ($tokens[$j][0] === T_STRING) {
-                        $className = $tokens[$j][1];
-                        break;
-                    }
-                }
-                break;
-            }
-        }
-
-        if ($namespace && $className) {
-            return $namespace . '\\' . $className;
-        }
-
-        return null;
-    }
-
-    /**
      * Register handlers from a class
      *
      * @param string $className
@@ -213,9 +240,9 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
-            $eventClass = $params[0]->getType()->getName();
-            $registry->registerHandler($eventClass, $class->getName(), $method->getName());
+        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
+            $commandClass = $params[0]->getType()->getName();
+            $registry->registerHandler($commandClass, $class->getName(), $method->getName());
         }
     }
 
@@ -235,7 +262,7 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
+        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
             $queryClass = $params[0]->getType()->getName();
             $registry->registerHandler($queryClass, $class->getName(), $method->getName());
         }
@@ -257,67 +284,50 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
+        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
             $eventClass = $params[0]->getType()->getName();
             $registry->registerHandler($eventClass, $class->getName(), $method->getName());
         }
     }
 
     /**
-     * Register the CQRS services.
+     * Get the class name from a file
      *
-     * @return void
+     * @param string $file
+     * @return string|null
      */
-    public function register(): void
+    protected function getClassNameFromFile(string $file): ?string
     {
-        error_log('register');
-        // Register the Configuration
-        $this->container->singleton(Configuration::class, function () {
-            return new Configuration(config('cqrs'));
-        });
+        $content = file_get_contents($file);
+        $tokens = token_get_all($content);
+        $namespace = '';
+        $className = '';
 
-        // Register the handler registries
-        $this->container->singleton(CommandHandlerRegistry::class);
-        $this->container->singleton(QueryHandlerRegistry::class);
-        $this->container->singleton(EventHandlerRegistry::class);
+        for ($i = 0; $i < count($tokens); $i++) {
+            if ($tokens[$i][0] === T_NAMESPACE) {
+                for ($j = $i + 1; $j < count($tokens); $j++) {
+                    if ($tokens[$j][0] === T_NAME_QUALIFIED) {
+                        $namespace = $tokens[$j][1];
+                        break;
+                    }
+                }
+            }
 
-        // Register the handler resolvers
-        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
-            return new CommandHandlerResolver(
-                $app,
-                $app->make(EventBusInterface::class)
-            );
-        });
-        $this->container->singleton(QueryHandlerResolver::class);
+            if ($tokens[$i][0] === T_CLASS) {
+                for ($j = $i + 1; $j < count($tokens); $j++) {
+                    if ($tokens[$j][0] === T_STRING) {
+                        $className = $tokens[$j][1];
+                        break;
+                    }
+                }
+                break;
+            }
+        }
 
-        // Register the buses
-        $this->container->singleton(CommandBusInterface::class, function ($app) {
-            return new EnqueueCommandBus(
-                $app->make(ProducerInterface::class),
-                $app->make(CommandHandlerRegistry::class),
-                $app->make(CommandHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
-            );
-        });
+        if ($namespace && $className) {
+            return $namespace . '\\' . $className;
+        }
 
-        $this->container->singleton(QueryBusInterface::class, function ($app) {
-            return new EnqueueQueryBus(
-                $app->make(ProducerInterface::class),
-                $app->make(QueryHandlerRegistry::class),
-                $app->make(QueryHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
-            );
-        });
-
-        $this->container->singleton(EventBusInterface::class, function ($app) {
-            return new EnqueueEventBus(
-                $app->make(ProducerInterface::class),
-                $app->make(EventHandlerRegistry::class),
-                $app,
-                $app->make(Configuration::class)
-            );
-        });
+        return null;
     }
 }

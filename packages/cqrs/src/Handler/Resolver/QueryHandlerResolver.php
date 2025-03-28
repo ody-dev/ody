@@ -2,7 +2,7 @@
 
 namespace Ody\CQRS\Handler\Resolver;
 
-class QueryHandlerResolver
+class QueryHandlerResolver extends HandlerResolver
 {
-
+    // Uses the base implementation from HandlerResolver
 }

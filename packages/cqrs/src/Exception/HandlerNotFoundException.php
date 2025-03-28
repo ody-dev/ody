@@ -2,7 +2,6 @@
 
 namespace Ody\CQRS\Exception;
 
-class HandlerNotFoundException
+class HandlerNotFoundException extends \Exception
 {
-
 }

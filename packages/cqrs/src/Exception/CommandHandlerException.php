@@ -2,7 +2,6 @@
 
 namespace Ody\CQRS\Exception;
 
-class CommandHandlerException
+class CommandHandlerException extends \Exception
 {
-
 }

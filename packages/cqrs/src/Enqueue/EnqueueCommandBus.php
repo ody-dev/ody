@@ -3,7 +3,7 @@
 namespace Ody\CQRS\Enqueue;
 
 use Enqueue\Client\ProducerInterface;
-use Illuminate\Contracts\Container\Container;
+use Ody\Container\Container;
 use Ody\CQRS\Exception\CommandHandlerException;
 use Ody\CQRS\Exception\HandlerNotFoundException;
 use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;

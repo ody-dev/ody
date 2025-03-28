@@ -40,11 +40,16 @@ class Configuration
     public function __construct(array $config = [])
     {
         if (isset($config['async_enabled'])) {
-            $this->asyncEnabled = (bool)$config['async_enabled'];
+            $this->asyncEnabled = !(filter_var($config['async_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== null) || (bool)$config['async_enabled'];
         }
 
         if (isset($config['async_commands']) && is_array($config['async_commands'])) {
-            $this->asyncCommands = $config['async_commands'];
+            $asyncCommands = $config['async_commands'];
+            if (array_walk($asyncCommands, function ($item) {
+                return is_string($item);
+            })) {
+                $this->asyncCommands = $asyncCommands;
+            }
         }
 
         if (isset($config['default_command_topic'])) {

@@ -213,9 +213,9 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
-            $commandClass = $params[0]->getType()->getName();
-            $registry->registerHandler($commandClass, $class->getName(), $method->getName());
+        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
+            $eventClass = $params[0]->getType()->getName();
+            $registry->registerHandler($eventClass, $class->getName(), $method->getName());
         }
     }
 
@@ -235,7 +235,7 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
+        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
             $queryClass = $params[0]->getType()->getName();
             $registry->registerHandler($queryClass, $class->getName(), $method->getName());
         }
@@ -257,7 +257,7 @@ class CQRSServiceProvider extends ServiceProvider
     {
         $params = $method->getParameters();
 
-        if (empty($params) || !$params[0]->getType() || !$params[0]->getType()->isBuiltin()) {
+        if (!empty($params) && (!$params[0]->getType() || $params[0]->getType()->isBuiltin())) {
             $eventClass = $params[0]->getType()->getName();
             $registry->registerHandler($eventClass, $class->getName(), $method->getName());
         }

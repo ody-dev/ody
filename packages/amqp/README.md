@@ -14,7 +14,7 @@ composer require ody/amqp
 First, publish the configuration file:
 
 ```bash
-php artisan publish:config ody/amqp
+php ody publish:config ody/amqp
 ```
 
 This will create a `config/amqp.php` file where you can configure your RabbitMQ connections:
@@ -34,10 +34,6 @@ return [
             'limit' => 10,  // Max concurrent consumers per process
         ],
         
-        'pool' => [
-            'connections' => 5,  // Number of connections per worker
-        ],
-        
         'params' => [
             'connection_timeout' => 3.0,
             'read_write_timeout' => 3.0,
@@ -50,6 +46,14 @@ return [
     'analytics' => [
         'host' => 'analytics-rabbitmq',
         // Other connection settings
+    ],
+    
+    // Connection pooling configuration
+    'pool' => [
+        'enable' => true,
+        'max_connections' => 20,
+        'max_channels_per_connection' => 20,
+        'max_idle_time' => 60,  // seconds
     ],
     
     'producer' => [
@@ -111,6 +115,42 @@ services:
 volumes:
   rabbitmq_data:
   rabbitmq_log:
+```
+
+## Connection Pooling
+
+The framework implements connection pooling to optimize RabbitMQ connections by reusing existing connections and
+channels instead of creating new ones for each operation. This significantly improves performance in high-throughput
+scenarios.
+
+### Pool Configuration
+
+Configure the connection pool in your `config/amqp.php` file:
+
+```php
+'pool' => [
+    'enable' => true,                   // Enable/disable connection pooling
+    'max_connections' => 20,            // Maximum connections in the pool
+    'max_channels_per_connection' => 20,// Maximum channels per connection
+    'max_idle_time' => 60,              // Maximum idle time in seconds
+],
+```
+
+### Usage
+
+Connection pooling works transparently with the existing AMQP API:
+
+```php
+// The publish method automatically uses pooled connections
+AMQP::publish(UserCreatedProducer::class, [
+    $user->id,
+    $user->email,
+    $user->username
+]);
+
+// For advanced usage, you can directly access pooled resources
+$connection = AMQP::getPooledConnection();
+$channel = AMQP::getPooledChannel();
 ```
 
 ## Creating Producers
@@ -287,44 +327,19 @@ You can use this interface to:
 - Manage exchanges, queues, and bindings
 - View connections and channels
 
-## Troubleshooting
+### Connection Pool Monitoring
 
-### Common Issues
-
-1. **Connection Refused**: Check your RabbitMQ server is running and the connection details are correct.
-2. **Exchange/Queue Not Found**: Verify exchange and queue names match between producers and consumers.
-3. **Type Mismatch**: Ensure exchange types match between producers and consumers (e.g., 'topic', 'direct', 'fanout').
-4. **Messages Not Being Consumed**: Check that consumers are running and bound to the correct exchange and routing key.
-
-### Debugging
-
-Enable detailed logging in your consumers:
+To monitor the connection pool, you can use:
 
 ```php
-public function consumeMessage(array $data, AMQPMessage $message): Result
-{
-    error_log("Received message: " . json_encode($data));
-    error_log("Delivery tag: " . $message->getDeliveryTag());
-    // Rest of your processing
-}
+// Get connection pool statistics
+$connectionStats = \Ody\AMQP\AMQPConnectionPool::getStats();
+
+// Get channel pool statistics
+$channelStats = \Ody\AMQP\AMQPChannelPool::getStats();
 ```
 
-## Best Practices
-
-1. **Use Topic Exchanges**: They provide more flexibility than direct exchanges.
-2. **Implement Error Handling**: Always handle exceptions in consumers and return appropriate result codes.
-3. **Consider Message Idempotency**: Design your consumers to handle duplicate messages safely.
-4. **Set Appropriate Prefetch Count**: Adjust based on your processing speed and resource constraints.
-5. **Monitor Queue Lengths**: Long queues may indicate processing bottlenecks.
-6. **Use Descriptive Routing Keys**: Follow a convention like `entity.action.type` for better organization.
-
-## Next Steps
-
-- Implement dead letter exchanges for failed messages
-- Set up message TTL (time-to-live) for expiring old messages
-- Implement circuit breakers for external service calls
-- Add message batching for better performance
-- Set up message priorities for critical messages
+This returns information about active connections, their state, and channel distribution.
 
 ---
 

@@ -23,7 +23,7 @@
         "nyholm/psr7": "^1.8",
         "nyholm/psr7-server": "^1.1.0",
         "php": ">=8.3",
-      "php-amqplib/php-amqplib": "^3.7",
+        "php-amqplib/php-amqplib": "^3.7",
         "php-http/curl-client": "^2.3",
         "php-http/guzzle7-adapter": "^1.1",
         "psr/cache": "^1.0|^2.0|^3.0",
@@ -59,10 +59,11 @@
         "vimeo/psalm": "^6.8.8"
     },
     "replace": {
-      "ody/amqp": "self.version",
+        "ody/amqp": "self.version",
         "ody/auth": "self.version",
-      "ody/connection-pool": "self.version",
+        "ody/connection-pool": "self.version",
         "ody/container": "self.version",
+        "ody/cqrs": "self.version",
         "ody/database": "self.version",
         "ody/foundation": "self.version",
         "ody/influxdb": "self.version",
@@ -79,8 +80,9 @@
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
-          "ODY\\AMQP\\": "packages/amqp/src/",
+            "Ody\\AMQP\\": "packages/amqp/src/",
             "Ody\\Auth\\": "packages/auth/src/",
+            "Ody\\CQRS\\": "packages/cqrs/src/",
             "Ody\\ConnectionPool\\": "packages/connection-pool/src/",
             "Ody\\Container\\": "packages/container/src/",
             "Ody\\DB\\": "packages/database/src/",

@@ -13,6 +13,7 @@
         "doctrine/dbal": "^4.2.0",
         "doctrine/orm": "^3.3.0",
         "dragonmantank/cron-expression": "^2.2",
+        "enqueue/enqueue": "^0.10.24",
         "ext-pdo": "*",
         "ext-swoole": "^6.0",
         "firebase/php-jwt": "^v6.1.0",

@@ -2,7 +2,6 @@
 
 namespace Ody\CQRS\Exception;
 
-class QueryHandlerException
+class QueryHandlerException extends \Exception
 {
-
 }

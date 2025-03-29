@@ -1,7 +1,7 @@
 # ODY CQRS
 
-A robust and flexible CQRS (Command Query Responsibility Segregation) implementation for the ODY PHP framework with
-Swoole coroutine support.
+A robust and flexible CQRS (Command Query Responsibility Segregation) implementation for the ODY PHP
+framework.
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-8892BF.svg)](https://www.php.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,8 +9,8 @@ Swoole coroutine support.
 ## Overview
 
 ODY CQRS provides a clean separation between commands (that modify state) and queries (that return data) in your
-application. This implementation leverages Swoole's coroutines for high-performance asynchronous processing and
-integrates with message queues for reliable event-driven architecture.
+application. This implementation focuses on a synchronous approach for reliable and predictable execution of your
+domain operations.
 
 Key features:
 
@@ -18,7 +18,6 @@ Key features:
 - **Query Bus**: Handle data retrieval operations
 - **Event Bus**: Broadcast and handle domain events
 - **Middleware Support**: Extend functionality with custom middleware
-- **Asynchronous Processing**: Offload commands and events to background queue
 - **Attribute-based Registration**: Simple handler declaration with PHP 8 attributes
 
 ## Installation
@@ -26,12 +25,6 @@ Key features:
 ```bash
 composer require ody/cqrs
 ```
-
-Requirements:
-
-- PHP 8.3+
-- Swoole extension 6.0+
-- RabbitMQ (other message brokers will be released soon)
 
 ## Quick Start
 
@@ -202,60 +195,22 @@ Create or update `config/cqrs.php`:
 ```php
 <?php
 return [
-    'async_enabled' => env('CQRS_ASYNC_ENABLED', true),
-    'async_commands' => [
-        // List command classes that should run asynchronously
-        App\Commands\ProcessPaymentCommand::class,
-    ],
     'handler_paths' => [
         app_path('Services'),
-    ],
-    'swoole' => [
-        'enabled' => env('CQRS_SWOOLE_ENABLED', true),
-        'max_coroutines' => env('CQRS_SWOOLE_MAX_COROUTINES', 3000),
     ],
 ];
 ```
 
 ## Advanced Configuration
 
-The CQRS module includes numerous configuration options:
+The CQRS module includes several configuration options:
 
 ```php
 <?php
 return [
-    // Enable/disable asynchronous processing
-    'async_enabled' => env('CQRS_ASYNC_ENABLED', true),
-    
-    // Specify which commands should be processed asynchronously
-    'async_commands' => [
-        // If empty, all commands will be async when async_enabled is true
-        // App\Commands\ProcessPaymentCommand::class,
-    ],
-    
-    // Default message queue topics
-    'default_command_topic' => env('CQRS_COMMAND_TOPIC', 'commands'),
-    'default_event_topic' => env('CQRS_EVENT_TOPIC', 'events'),
-    
-    // Custom queue topics for specific commands
-    'command_topics' => [
-        App\Commands\ProcessPaymentCommand::class => 'payment_commands',
-    ],
-    
-    // Custom queue topics for specific events
-    'event_topics' => [
-        App\Events\PaymentProcessedEvent::class => 'payment_events',
-    ],
-    
     // Paths to scan for handlers
     'handler_paths' => [
         app_path('Services'),
-    ],
-    
-    // Swoole coroutine configuration
-    'swoole' => [
-        'enabled' => env('CQRS_SWOOLE_ENABLED', true),
-        'max_coroutines' => env('CQRS_SWOOLE_MAX_COROUTINES', 3000),
     ],
 ];
 ```
@@ -289,40 +244,311 @@ class LoggingMiddleware extends CommandBusMiddleware
 $commandBus->addMiddleware(new LoggingMiddleware());
 ```
 
-## Asynchronous Processing
+# CQRS Middleware System
 
-When async processing is enabled, commands are sent to message queues and processed in the background:
+The CQRS middleware system allows you to intercept and modify the behavior of commands, queries, and events at various
+points in their lifecycle. This powerful feature enables cross-cutting concerns like logging, validation, authorization,
+and caching without modifying your core business logic.
 
-1. Command is dispatched in your application
-2. Command is serialized and sent to the message queue
-3. CommandProcessor picks up and executes the command asynchronously
-4. Results and events are processed accordingly
+## Types of Middleware
 
-This approach improves application responsiveness, especially for time-consuming operations.
+There are four types of middleware:
 
-## Working with Swoole Coroutines
+1. **Before**: Executes before the target method is called
+2. **Around**: Wraps the execution of the target method
+3. **After**: Executes after the target method returns successfully
+4. **AfterThrowing**: Executes when the target method throws an exception
 
-This CQRS implementation leverages Swoole's coroutines for better performance:
+## Creating Middleware
 
-1. Multiple commands and queries can be processed concurrently
-2. System resources are used more efficiently
-3. Handlers can perform non-blocking I/O operations
+Middleware classes are simple PHP classes with methods decorated with attribute annotations.
 
-To take advantage of coroutines in your handlers:
+### Example: Logging Middleware
 
 ```php
-#[CommandHandler]
-public function processLargeData(ProcessLargeDataCommand $command)
+namespace App\Middleware;
+
+use Ody\CQRS\Middleware\Before;
+use Ody\CQRS\Middleware\After;
+use Ody\CQRS\Middleware\AfterThrowing;
+
+class LoggingMiddleware
 {
-    // Create a new coroutine for heavy processing
-    go(function () use ($command) {
-        // Long-running process here
-        $this->processDataInBackground($command->getData());
-    });
-    
-    return true; // Return immediately
+    #[Before(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+    public function logBeforeCommand(object $command): void
+    {
+        logger()->info('Processing command: ' . get_class($command));
+    }
+
+    #[After(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+    public function logAfterQuery(mixed $result, array $args): mixed
+    {
+        $query = $args[0] ?? null;
+        
+        if ($query) {
+            logger()->info('Query processed: ' . get_class($query));
+        }
+        
+        return $result;
+    }
+
+    #[AfterThrowing(pointcut: "Ody\\CQRS\\Bus\\EventBus::executeHandlers")]
+    public function logEventException(\Throwable $exception, array $args): void
+    {
+        $event = $args[0] ?? null;
+        
+        if ($event) {
+            logger()->error('Error handling event: ' . get_class($event));
+        }
+    }
 }
 ```
+
+### Example: Transactional Middleware
+
+```php
+namespace App\Middleware;
+
+use Ody\CQRS\Middleware\Around;
+use Ody\CQRS\Middleware\MethodInvocation;
+
+class TransactionalMiddleware
+{
+    public function __construct(private \PDO $connection)
+    {
+    }
+
+    #[Around(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+    public function transactional(MethodInvocation $invocation): mixed
+    {
+        $this->connection->beginTransaction();
+        
+        try {
+            $result = $invocation->proceed();
+            $this->connection->commit();
+            return $result;
+        } catch (\Throwable $exception) {
+            $this->connection->rollBack();
+            throw $exception;
+        }
+    }
+}
+```
+
+## Pointcut Expressions
+
+Pointcut expressions determine which methods the middleware applies to. The syntax supports:
+
+1. **Exact Class Match**: `App\Services\UserService`
+2. **Namespace Wildcard**: `App\Domain\*`
+3. **Method Match**: `App\Services\UserService::createUser`
+4. **Any Method Wildcard**: `App\Services\UserService::*`
+5. **Global Wildcard**: `*` (matches everything)
+6. **Logical Operations**: `App\Domain\* && !App\Domain\Internal\*`
+
+### Examples
+
+```php
+// Match any command in the Order namespace
+#[Before(pointcut: "App\\Commands\\Order\\*")]
+public function validateOrderCommand(object $command): void { }
+
+// Match a specific method in a specific class
+#[Around(pointcut: "App\\Services\\PaymentService::processPayment")]
+public function securePaymentProcessing(MethodInvocation $invocation): mixed { }
+
+// Match multiple patterns with logical OR
+#[After(pointcut: "App\\Domain\\User\\* || App\\Domain\\Account\\*")]
+public function auditUserChanges(mixed $result, array $args): mixed { }
+```
+
+## Middleware Priority
+
+You can control the order in which middleware executes by setting a priority. Lower values run first.
+
+```php
+// Runs before other middleware
+#[Before(priority: 1, pointcut: "*")]
+public function highPriorityMiddleware(): void { }
+
+// Runs after middleware with lower priority values
+#[Before(priority: 100, pointcut: "*")]
+public function lowPriorityMiddleware(): void { }
+```
+
+## Registering Middleware
+
+Middleware is discovered and registered automatically from configured directories:
+
+```php
+// config/cqrs.php
+return [
+    // ...
+    'middleware_paths' => [
+        app_path('Middleware'),
+    ],
+    // ...
+];
+```
+
+## Before Middleware
+
+Before middleware runs before a method executes. It's useful for:
+
+- Validation
+- Authorization
+- Parameter transformation
+- Logging
+
+```php
+#[Before(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+public function validateCommand(object $command): void
+{
+    // Validate the command
+    $errors = $this->validator->validate($command);
+    
+    if (!empty($errors)) {
+        throw new ValidationException($errors);
+    }
+}
+```
+
+## Around Middleware
+
+Around middleware wraps a method execution. It's useful for:
+
+- Transactions
+- Timing measurements
+- Caching
+- Retry logic
+
+```php
+#[Around(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+public function cacheQueryResults(MethodInvocation $invocation): mixed
+{
+    $args = $invocation->getArguments();
+    $query = $args[0];
+    
+    $cacheKey = 'query:' . get_class($query) . ':' . md5(serialize($query));
+    
+    if ($this->cache->has($cacheKey)) {
+        return $this->cache->get($cacheKey);
+    }
+    
+    $result = $invocation->proceed();
+    
+    $this->cache->set($cacheKey, $result, 3600);
+    
+    return $result;
+}
+```
+
+## After Middleware
+
+After middleware runs after a method successfully returns. It's useful for:
+
+- Result transformation
+- Post-processing
+- Logging
+- Event publishing
+
+```php
+#[After(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+public function transformQueryResult(mixed $result, array $args): mixed
+{
+    // Transform the result
+    if (is_array($result)) {
+        return array_map(function ($item) {
+            return $this->transformer->transform($item);
+        }, $result);
+    }
+    
+    return $this->transformer->transform($result);
+}
+```
+
+## AfterThrowing Middleware
+
+AfterThrowing middleware runs when a method throws an exception. It's useful for:
+
+- Exception handling
+- Logging errors
+- Fallback strategies
+- Error notification
+
+```php
+#[AfterThrowing(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+public function handleCommandException(\Throwable $exception, array $args): void
+{
+    $command = $args[0];
+    
+    logger()->error('Command failed: ' . get_class($command), [
+        'command' => $command,
+        'exception' => $exception->getMessage(),
+        'trace' => $exception->getTraceAsString()
+    ]);
+    
+    // Notify monitoring system
+    $this->alertService->sendAlert('Command failed: ' . get_class($command));
+}
+```
+
+## Performance Considerations
+
+In the Swoole environment where ODY runs, middleware registration happens once at bootstrap time, \
+making the runtime overhead minimal. The middleware system is designed to be efficient:
+
+1. **Cached Resolution**: Pointcut expressions are evaluated once and cached
+2. **Minimal Reflection**: Heavy reflection work is done during bootstrap
+3. **Optimized Invocation**: Method invocation chains are built efficiently
+
+## Configuration Options
+
+```php
+// config/cqrs.php
+return [
+    // ...
+    
+    // Paths to scan for middleware classes
+    'middleware_paths' => [
+        app_path('Middleware'),
+    ],
+    
+    // Middleware configuration
+    'middleware' => [
+        // Global middleware applied to all buses
+        'global' => [
+            // Example: App\Middleware\LoggingMiddleware::class,
+        ],
+        
+        // Command bus specific middleware
+        'command' => [
+            // Example: App\Middleware\TransactionalMiddleware::class,
+        ],
+        
+        // Query bus specific middleware
+        'query' => [
+            // Example: App\Middleware\CachingMiddleware::class,
+        ],
+        
+        // Event bus specific middleware
+        'event' => [
+            // Example: App\Middleware\AsyncEventMiddleware::class,
+        ],
+    ],
+    
+    // ...
+];
+```
+
+## Swoole Coroutines Integration
+
+While the CQRS implementation itself is synchronous, you can still leverage Swoole's coroutines in your application when
+using this module:
+
+1. Multiple command and query handlers can still benefit from Swoole's coroutine scheduler
+2. I/O operations within handlers can take advantage of Swoole's non-blocking capabilities
+3. Your application remains responsive while handlers execute their logic
 
 ## Best Practices
 

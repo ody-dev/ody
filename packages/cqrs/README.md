@@ -1,7 +1,7 @@
 # ODY CQRS
 
-A robust and flexible CQRS (Command Query Responsibility Segregation) implementation for the ODY PHP framework with
-Swoole coroutine support.
+A robust and flexible CQRS (Command Query Responsibility Segregation) implementation for the ODY PHP
+framework.
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-8892BF.svg)](https://www.php.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,8 +9,8 @@ Swoole coroutine support.
 ## Overview
 
 ODY CQRS provides a clean separation between commands (that modify state) and queries (that return data) in your
-application. This implementation leverages Swoole's coroutines for high-performance asynchronous processing and
-integrates with message queues for reliable event-driven architecture.
+application. This implementation focuses on a synchronous approach for reliable and predictable execution of your
+domain operations.
 
 Key features:
 
@@ -18,7 +18,6 @@ Key features:
 - **Query Bus**: Handle data retrieval operations
 - **Event Bus**: Broadcast and handle domain events
 - **Middleware Support**: Extend functionality with custom middleware
-- **Asynchronous Processing**: Offload commands and events to background queue
 - **Attribute-based Registration**: Simple handler declaration with PHP 8 attributes
 
 ## Installation
@@ -26,12 +25,6 @@ Key features:
 ```bash
 composer require ody/cqrs
 ```
-
-Requirements:
-
-- PHP 8.3+
-- Swoole extension 6.0+
-- RabbitMQ (other message brokers will be released soon)
 
 ## Quick Start
 
@@ -202,60 +195,22 @@ Create or update `config/cqrs.php`:
 ```php
 <?php
 return [
-    'async_enabled' => env('CQRS_ASYNC_ENABLED', true),
-    'async_commands' => [
-        // List command classes that should run asynchronously
-        App\Commands\ProcessPaymentCommand::class,
-    ],
     'handler_paths' => [
         app_path('Services'),
-    ],
-    'swoole' => [
-        'enabled' => env('CQRS_SWOOLE_ENABLED', true),
-        'max_coroutines' => env('CQRS_SWOOLE_MAX_COROUTINES', 3000),
     ],
 ];
 ```
 
 ## Advanced Configuration
 
-The CQRS module includes numerous configuration options:
+The CQRS module includes several configuration options:
 
 ```php
 <?php
 return [
-    // Enable/disable asynchronous processing
-    'async_enabled' => env('CQRS_ASYNC_ENABLED', true),
-    
-    // Specify which commands should be processed asynchronously
-    'async_commands' => [
-        // If empty, all commands will be async when async_enabled is true
-        // App\Commands\ProcessPaymentCommand::class,
-    ],
-    
-    // Default message queue topics
-    'default_command_topic' => env('CQRS_COMMAND_TOPIC', 'commands'),
-    'default_event_topic' => env('CQRS_EVENT_TOPIC', 'events'),
-    
-    // Custom queue topics for specific commands
-    'command_topics' => [
-        App\Commands\ProcessPaymentCommand::class => 'payment_commands',
-    ],
-    
-    // Custom queue topics for specific events
-    'event_topics' => [
-        App\Events\PaymentProcessedEvent::class => 'payment_events',
-    ],
-    
     // Paths to scan for handlers
     'handler_paths' => [
         app_path('Services'),
-    ],
-    
-    // Swoole coroutine configuration
-    'swoole' => [
-        'enabled' => env('CQRS_SWOOLE_ENABLED', true),
-        'max_coroutines' => env('CQRS_SWOOLE_MAX_COROUTINES', 3000),
     ],
 ];
 ```
@@ -289,40 +244,14 @@ class LoggingMiddleware extends CommandBusMiddleware
 $commandBus->addMiddleware(new LoggingMiddleware());
 ```
 
-## Asynchronous Processing
+## Swoole Coroutines Integration
 
-When async processing is enabled, commands are sent to message queues and processed in the background:
+While the CQRS implementation itself is synchronous, you can still leverage Swoole's coroutines in your application when
+using this module:
 
-1. Command is dispatched in your application
-2. Command is serialized and sent to the message queue
-3. CommandProcessor picks up and executes the command asynchronously
-4. Results and events are processed accordingly
-
-This approach improves application responsiveness, especially for time-consuming operations.
-
-## Working with Swoole Coroutines
-
-This CQRS implementation leverages Swoole's coroutines for better performance:
-
-1. Multiple commands and queries can be processed concurrently
-2. System resources are used more efficiently
-3. Handlers can perform non-blocking I/O operations
-
-To take advantage of coroutines in your handlers:
-
-```php
-#[CommandHandler]
-public function processLargeData(ProcessLargeDataCommand $command)
-{
-    // Create a new coroutine for heavy processing
-    go(function () use ($command) {
-        // Long-running process here
-        $this->processDataInBackground($command->getData());
-    });
-    
-    return true; // Return immediately
-}
-```
+1. Multiple command and query handlers can still benefit from Swoole's coroutine scheduler
+2. I/O operations within handlers can take advantage of Swoole's non-blocking capabilities
+3. Your application remains responsive while handlers execute their logic
 
 ## Best Practices
 

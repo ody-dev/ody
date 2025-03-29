@@ -106,4 +106,12 @@ class CommandBus implements CommandBusInterface
             throw $e;
         }
     }
+
+    /**
+     * @return CommandHandlerRegistry
+     */
+    public function getHandlerRegistry(): CommandHandlerRegistry
+    {
+        return $this->handlerRegistry;
+    }
 }

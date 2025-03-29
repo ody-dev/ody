@@ -106,4 +106,12 @@ class QueryBus implements QueryBusInterface
             throw $e;
         }
     }
+
+    /**
+     * @return QueryHandlerRegistry
+     */
+    public function getHandlerRegistry(): QueryHandlerRegistry
+    {
+        return $this->handlerRegistry;
+    }
 }

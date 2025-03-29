@@ -244,6 +244,303 @@ class LoggingMiddleware extends CommandBusMiddleware
 $commandBus->addMiddleware(new LoggingMiddleware());
 ```
 
+# CQRS Middleware System
+
+The CQRS middleware system allows you to intercept and modify the behavior of commands, queries, and events at various
+points in their lifecycle. This powerful feature enables cross-cutting concerns like logging, validation, authorization,
+and caching without modifying your core business logic.
+
+## Types of Middleware
+
+There are four types of middleware:
+
+1. **Before**: Executes before the target method is called
+2. **Around**: Wraps the execution of the target method
+3. **After**: Executes after the target method returns successfully
+4. **AfterThrowing**: Executes when the target method throws an exception
+
+## Creating Middleware
+
+Middleware classes are simple PHP classes with methods decorated with attribute annotations.
+
+### Example: Logging Middleware
+
+```php
+namespace App\Middleware;
+
+use Ody\CQRS\Middleware\Before;
+use Ody\CQRS\Middleware\After;
+use Ody\CQRS\Middleware\AfterThrowing;
+
+class LoggingMiddleware
+{
+    #[Before(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+    public function logBeforeCommand(object $command): void
+    {
+        logger()->info('Processing command: ' . get_class($command));
+    }
+
+    #[After(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+    public function logAfterQuery(mixed $result, array $args): mixed
+    {
+        $query = $args[0] ?? null;
+        
+        if ($query) {
+            logger()->info('Query processed: ' . get_class($query));
+        }
+        
+        return $result;
+    }
+
+    #[AfterThrowing(pointcut: "Ody\\CQRS\\Bus\\EventBus::executeHandlers")]
+    public function logEventException(\Throwable $exception, array $args): void
+    {
+        $event = $args[0] ?? null;
+        
+        if ($event) {
+            logger()->error('Error handling event: ' . get_class($event));
+        }
+    }
+}
+```
+
+### Example: Transactional Middleware
+
+```php
+namespace App\Middleware;
+
+use Ody\CQRS\Middleware\Around;
+use Ody\CQRS\Middleware\MethodInvocation;
+
+class TransactionalMiddleware
+{
+    public function __construct(private \PDO $connection)
+    {
+    }
+
+    #[Around(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+    public function transactional(MethodInvocation $invocation): mixed
+    {
+        $this->connection->beginTransaction();
+        
+        try {
+            $result = $invocation->proceed();
+            $this->connection->commit();
+            return $result;
+        } catch (\Throwable $exception) {
+            $this->connection->rollBack();
+            throw $exception;
+        }
+    }
+}
+```
+
+## Pointcut Expressions
+
+Pointcut expressions determine which methods the middleware applies to. The syntax supports:
+
+1. **Exact Class Match**: `App\Services\UserService`
+2. **Namespace Wildcard**: `App\Domain\*`
+3. **Method Match**: `App\Services\UserService::createUser`
+4. **Any Method Wildcard**: `App\Services\UserService::*`
+5. **Global Wildcard**: `*` (matches everything)
+6. **Logical Operations**: `App\Domain\* && !App\Domain\Internal\*`
+
+### Examples
+
+```php
+// Match any command in the Order namespace
+#[Before(pointcut: "App\\Commands\\Order\\*")]
+public function validateOrderCommand(object $command): void { }
+
+// Match a specific method in a specific class
+#[Around(pointcut: "App\\Services\\PaymentService::processPayment")]
+public function securePaymentProcessing(MethodInvocation $invocation): mixed { }
+
+// Match multiple patterns with logical OR
+#[After(pointcut: "App\\Domain\\User\\* || App\\Domain\\Account\\*")]
+public function auditUserChanges(mixed $result, array $args): mixed { }
+```
+
+## Middleware Priority
+
+You can control the order in which middleware executes by setting a priority. Lower values run first.
+
+```php
+// Runs before other middleware
+#[Before(priority: 1, pointcut: "*")]
+public function highPriorityMiddleware(): void { }
+
+// Runs after middleware with lower priority values
+#[Before(priority: 100, pointcut: "*")]
+public function lowPriorityMiddleware(): void { }
+```
+
+## Registering Middleware
+
+Middleware is discovered and registered automatically from configured directories:
+
+```php
+// config/cqrs.php
+return [
+    // ...
+    'middleware_paths' => [
+        app_path('Middleware'),
+    ],
+    // ...
+];
+```
+
+## Before Middleware
+
+Before middleware runs before a method executes. It's useful for:
+
+- Validation
+- Authorization
+- Parameter transformation
+- Logging
+
+```php
+#[Before(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+public function validateCommand(object $command): void
+{
+    // Validate the command
+    $errors = $this->validator->validate($command);
+    
+    if (!empty($errors)) {
+        throw new ValidationException($errors);
+    }
+}
+```
+
+## Around Middleware
+
+Around middleware wraps a method execution. It's useful for:
+
+- Transactions
+- Timing measurements
+- Caching
+- Retry logic
+
+```php
+#[Around(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+public function cacheQueryResults(MethodInvocation $invocation): mixed
+{
+    $args = $invocation->getArguments();
+    $query = $args[0];
+    
+    $cacheKey = 'query:' . get_class($query) . ':' . md5(serialize($query));
+    
+    if ($this->cache->has($cacheKey)) {
+        return $this->cache->get($cacheKey);
+    }
+    
+    $result = $invocation->proceed();
+    
+    $this->cache->set($cacheKey, $result, 3600);
+    
+    return $result;
+}
+```
+
+## After Middleware
+
+After middleware runs after a method successfully returns. It's useful for:
+
+- Result transformation
+- Post-processing
+- Logging
+- Event publishing
+
+```php
+#[After(pointcut: "Ody\\CQRS\\Bus\\QueryBus::executeHandler")]
+public function transformQueryResult(mixed $result, array $args): mixed
+{
+    // Transform the result
+    if (is_array($result)) {
+        return array_map(function ($item) {
+            return $this->transformer->transform($item);
+        }, $result);
+    }
+    
+    return $this->transformer->transform($result);
+}
+```
+
+## AfterThrowing Middleware
+
+AfterThrowing middleware runs when a method throws an exception. It's useful for:
+
+- Exception handling
+- Logging errors
+- Fallback strategies
+- Error notification
+
+```php
+#[AfterThrowing(pointcut: "Ody\\CQRS\\Bus\\CommandBus::executeHandler")]
+public function handleCommandException(\Throwable $exception, array $args): void
+{
+    $command = $args[0];
+    
+    logger()->error('Command failed: ' . get_class($command), [
+        'command' => $command,
+        'exception' => $exception->getMessage(),
+        'trace' => $exception->getTraceAsString()
+    ]);
+    
+    // Notify monitoring system
+    $this->alertService->sendAlert('Command failed: ' . get_class($command));
+}
+```
+
+## Performance Considerations
+
+In the Swoole environment where ODY runs, middleware registration happens once at bootstrap time, \
+making the runtime overhead minimal. The middleware system is designed to be efficient:
+
+1. **Cached Resolution**: Pointcut expressions are evaluated once and cached
+2. **Minimal Reflection**: Heavy reflection work is done during bootstrap
+3. **Optimized Invocation**: Method invocation chains are built efficiently
+
+## Configuration Options
+
+```php
+// config/cqrs.php
+return [
+    // ...
+    
+    // Paths to scan for middleware classes
+    'middleware_paths' => [
+        app_path('Middleware'),
+    ],
+    
+    // Middleware configuration
+    'middleware' => [
+        // Global middleware applied to all buses
+        'global' => [
+            // Example: App\Middleware\LoggingMiddleware::class,
+        ],
+        
+        // Command bus specific middleware
+        'command' => [
+            // Example: App\Middleware\TransactionalMiddleware::class,
+        ],
+        
+        // Query bus specific middleware
+        'query' => [
+            // Example: App\Middleware\CachingMiddleware::class,
+        ],
+        
+        // Event bus specific middleware
+        'event' => [
+            // Example: App\Middleware\AsyncEventMiddleware::class,
+        ],
+    ],
+    
+    // ...
+];
+```
+
 ## Swoole Coroutines Integration
 
 While the CQRS implementation itself is synchronous, you can still leverage Swoole's coroutines in your application when

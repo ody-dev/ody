@@ -17,6 +17,10 @@ use Ody\CQRS\Handler\Resolver\QueryHandlerResolver;
 use Ody\CQRS\Interfaces\CommandBus as CommandBusInterface;
 use Ody\CQRS\Interfaces\EventBus as EventBusInterface;
 use Ody\CQRS\Interfaces\QueryBus as QueryBusInterface;
+use Ody\CQRS\Middleware\MiddlewareProcessor;
+use Ody\CQRS\Middleware\MiddlewareRegistry;
+use Ody\CQRS\Middleware\PointcutResolver;
+use Ody\CQRS\Middleware\SimplePointcutResolver;
 use Ody\Foundation\Providers\ServiceProvider;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -35,8 +39,16 @@ class CQRSServiceProvider extends ServiceProvider
             return;
         }
 
+        // Register config file
+        $this->publishes([
+            __DIR__ . '/../../config/cqrs.php' => config_path('cqrs.php'),
+        ], 'ody/cqrs');
+
         // Register handlers from configured directories
         $this->registerHandlers();
+
+        // Register middleware
+        $this->registerMiddleware();
     }
 
     /**
@@ -49,6 +61,11 @@ class CQRSServiceProvider extends ServiceProvider
         if ($this->isRunningInConsole()) {
             return;
         }
+
+        // Register middleware components
+        $this->container->singleton(PointcutResolver::class, SimplePointcutResolver::class);
+        $this->container->singleton(MiddlewareRegistry::class);
+        $this->container->singleton(MiddlewareProcessor::class);
 
         // Register the registries first since they have no dependencies
         $this->container->singleton(CommandHandlerRegistry::class);
@@ -80,21 +97,24 @@ class CQRSServiceProvider extends ServiceProvider
         $this->container->singleton(CommandBusInterface::class, function ($app) {
             return new CommandBus(
                 $app->make(CommandHandlerRegistry::class),
-                $app->make(CommandHandlerResolver::class)
+                $app->make(CommandHandlerResolver::class),
+                $app->make(MiddlewareProcessor::class)
             );
         });
 
         $this->container->singleton(QueryBusInterface::class, function ($app) {
             return new QueryBus(
                 $app->make(QueryHandlerRegistry::class),
-                $app->make(QueryHandlerResolver::class)
+                $app->make(QueryHandlerResolver::class),
+                $app->make(MiddlewareProcessor::class)
             );
         });
 
         $this->container->singleton(EventBusInterface::class, function ($app) {
             return new EventBus(
                 $app->make(EventHandlerRegistry::class),
-                $this->container
+                $this->container,
+                $app->make(MiddlewareProcessor::class)
             );
         });
     }
@@ -120,6 +140,24 @@ class CQRSServiceProvider extends ServiceProvider
         foreach ($handlerPaths as $path) {
             $this->scanDirectory($path, $commandRegistry, $queryRegistry, $eventRegistry);
         }
+    }
+
+    /**
+     * Register middleware by scanning middleware classes for attributes
+     *
+     * @return void
+     */
+    protected function registerMiddleware(): void
+    {
+        $middlewarePaths = config('cqrs.middleware_paths', []);
+
+        if (empty($middlewarePaths)) {
+            return;
+        }
+
+        /** @var MiddlewareRegistry $middlewareRegistry */
+        $middlewareRegistry = $this->container->make(MiddlewareRegistry::class);
+        $middlewareRegistry->registerMiddleware($middlewarePaths);
     }
 
     /**

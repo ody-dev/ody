@@ -2,16 +2,13 @@
 
 namespace Ody\CQRS\Providers;
 
-use Enqueue\Client\ProducerInterface;
-use Enqueue\SimpleClient\SimpleClient;
+use Ody\Container\Contracts\BindingResolutionException;
 use Ody\CQRS\Attributes\CommandHandler;
 use Ody\CQRS\Attributes\EventHandler;
 use Ody\CQRS\Attributes\QueryHandler;
-use Ody\CQRS\Enqueue\CommandProcessor;
-use Ody\CQRS\Enqueue\Configuration;
-use Ody\CQRS\Enqueue\EnqueueCommandBus;
-use Ody\CQRS\Enqueue\EnqueueEventBus;
-use Ody\CQRS\Enqueue\EnqueueQueryBus;
+use Ody\CQRS\Bus\CommandBus;
+use Ody\CQRS\Bus\EventBus;
+use Ody\CQRS\Bus\QueryBus;
 use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;
 use Ody\CQRS\Handler\Registry\EventHandlerRegistry;
 use Ody\CQRS\Handler\Registry\QueryHandlerRegistry;
@@ -34,7 +31,10 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        error_log('boot');
+        if ($this->isRunningInConsole()) {
+            return;
+        }
+
         // Register handlers from configured directories
         $this->registerHandlers();
     }
@@ -46,61 +46,55 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        error_log('register');
-        // Register the Configuration
-        $this->container->singleton(Configuration::class, function () {
-            return new Configuration(config('cqrs'));
-        });
+        if ($this->isRunningInConsole()) {
+            return;
+        }
 
-        $this->container->singleton(ProducerInterface::class, function () {
-            $client = new SimpleClient('amqp://admin:password@localhost:5672'); // TODO: hardcoded for now
-            $client->setupBroker();
-            return $client->getProducer();
-        });
-
-        $this->container->singleton(CommandProcessor::class);
-
-        // Register the handler registries
+        // Register the registries first since they have no dependencies
         $this->container->singleton(CommandHandlerRegistry::class);
         $this->container->singleton(QueryHandlerRegistry::class);
         $this->container->singleton(EventHandlerRegistry::class);
 
-        // Register the handler resolvers
+        // Register the query handler resolver
+        $this->container->singleton(QueryHandlerResolver::class);
+
+        // Break circular dependency with EventBus
+        // First register a very simple EventBus that does nothing
+        $this->container->singleton('simple.event.bus', function () {
+            return new class implements EventBusInterface {
+                public function publish(object $event): void
+                {
+                    // Do nothing, this is just a placeholder
+                }
+            };
+        });
+
+        // Now register CommandHandlerResolver with the simple EventBus
         $this->container->singleton(CommandHandlerResolver::class, function ($app) {
             return new CommandHandlerResolver(
                 $app,
                 $app->make(EventBusInterface::class)
             );
         });
-        $this->container->singleton(QueryHandlerResolver::class);
 
-        // Register the buses
         $this->container->singleton(CommandBusInterface::class, function ($app) {
-            return new EnqueueCommandBus(
-                $app->make(ProducerInterface::class),
+            return new CommandBus(
                 $app->make(CommandHandlerRegistry::class),
-                $app->make(CommandHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
+                $app->make(CommandHandlerResolver::class)
             );
         });
 
         $this->container->singleton(QueryBusInterface::class, function ($app) {
-            return new EnqueueQueryBus(
-                $app->make(ProducerInterface::class),
+            return new QueryBus(
                 $app->make(QueryHandlerRegistry::class),
-                $app->make(QueryHandlerResolver::class),
-                $app,
-                $app->make(Configuration::class)
+                $app->make(QueryHandlerResolver::class)
             );
         });
 
         $this->container->singleton(EventBusInterface::class, function ($app) {
-            return new EnqueueEventBus(
-                $app->make(ProducerInterface::class),
+            return new EventBus(
                 $app->make(EventHandlerRegistry::class),
-                $app,
-                $app->make(Configuration::class)
+                $this->container
             );
         });
     }
@@ -109,8 +103,9 @@ class CQRSServiceProvider extends ServiceProvider
      * Register handlers by scanning service classes for attributes
      *
      * @return void
+     * @throws BindingResolutionException
      */
-    protected function registerHandlers()
+    protected function registerHandlers(): void
     {
         $handlerPaths = config('cqrs.handler_paths', []);
 
@@ -220,7 +215,7 @@ class CQRSServiceProvider extends ServiceProvider
             }
         } catch (\Throwable $e) {
             // Log error but continue scanning
-            $this->container->make('log')->error("Error scanning class {$className}: " . $e->getMessage());
+            logger()->error("Error scanning class {$className}: " . $e->getMessage());
         }
     }
 

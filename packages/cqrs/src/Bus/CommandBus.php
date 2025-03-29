@@ -2,76 +2,45 @@
 
 namespace Ody\CQRS\Bus;
 
-use Ody\CQRS\Bus\Middleware\CommandBusMiddleware;
+use Ody\CQRS\Exception\CommandHandlerException;
+use Ody\CQRS\Exception\HandlerNotFoundException;
+use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;
+use Ody\CQRS\Handler\Resolver\CommandHandlerResolver;
 use Ody\CQRS\Interfaces\CommandBus as CommandBusInterface;
 
 class CommandBus implements CommandBusInterface
 {
-    /**
-     * @var CommandBusInterface
-     */
-    protected CommandBusInterface $bus;
-
-    /**
-     * @var array
-     */
-    protected array $middleware = [];
-
-    /**
-     * @param CommandBusInterface $bus
-     */
-    public function __construct(CommandBusInterface $bus)
+    public function __construct(
+        private CommandHandlerRegistry $handlerRegistry,
+        private CommandHandlerResolver $handlerResolver
+    )
     {
-        $this->bus = $bus;
     }
 
-    /**
-     * Add middleware to the command bus
-     *
-     * @param CommandBusMiddleware $middleware
-     * @return self
-     */
-    public function addMiddleware(CommandBusMiddleware $middleware): self
-    {
-        $this->middleware[] = $middleware;
-        return $this;
-    }
-
-    /**
-     * Dispatch a command through the middleware stack
-     *
-     * @param object $command
-     * @return void
-     */
     public function dispatch(object $command): void
     {
-        $this->executeMiddlewareStack($command, 0);
-    }
+        $commandClass = get_class($command);
 
-    /**
-     * Execute middleware stack recursively
-     *
-     * @param object $command
-     * @param int $index
-     * @return void
-     */
-    protected function executeMiddlewareStack(object $command, int $index): void
-    {
-        if ($index >= count($this->middleware)) {
-            // When we've gone through all middleware, execute the actual command
-            $this->bus->dispatch($command);
-            return;
+        // Check if we have a registered handler
+        if (!$this->handlerRegistry->hasHandlerFor($commandClass)) {
+            throw new HandlerNotFoundException(
+                sprintf('No handler found for command %s', $commandClass)
+            );
         }
 
-        // Execute the current middleware
-        $middleware = $this->middleware[$index];
+        // Get the handler information
+        $handlerInfo = $this->handlerRegistry->getHandlerFor($commandClass);
 
-        $middleware->handle(
-            $command,
-            function ($command) use ($index) {
-                // Move to the next middleware
-                $this->executeMiddlewareStack($command, $index + 1);
-            }
-        );
+        // Handle directly
+        try {
+            $handler = $this->handlerResolver->resolveHandler($handlerInfo);
+            $handler($command);
+        } catch (\Throwable $e) {
+            throw new CommandHandlerException(
+                sprintf('Error handling command %s: %s', $commandClass, $e->getMessage()),
+                0,
+                $e
+            );
+        }
     }
 }

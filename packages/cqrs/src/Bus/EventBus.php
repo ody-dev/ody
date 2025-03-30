@@ -4,7 +4,7 @@ namespace Ody\CQRS\Bus;
 
 use Ody\Container\Container;
 use Ody\CQRS\Handler\Registry\EventHandlerRegistry;
-use Ody\CQRS\Interfaces\EventBus as EventBusInterface;
+use Ody\CQRS\Interfaces\EventBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
 
 class EventBus implements EventBusInterface

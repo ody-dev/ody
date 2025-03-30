@@ -4,7 +4,7 @@ namespace Ody\CQRS\Interfaces;
 
 use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;
 
-interface CommandBus
+interface CommandBusInterface
 {
     public function dispatch(object $command): void;
 

@@ -4,6 +4,7 @@ namespace Ody\AMQP;
 
 use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
+use Psr\Log\LoggerInterface;
 
 /**
  * Channel pool for AMQP channels
@@ -27,7 +28,8 @@ class AMQPChannelPool
      */
     public function __construct(
         private AMQPConnectionPool $connectionPool,
-        Config                     $config
+        Config                  $config,
+        private LoggerInterface $logger
     )
     {
         // Load configuration
@@ -131,7 +133,7 @@ class AMQPChannelPool
                 }
             } catch (\Throwable $e) {
                 // Ignore errors during cleanup
-                logger()->error("[AMQP] Error closing channel: " . $e->getMessage());
+                $this->logger->error("[AMQP] Error closing channel: " . $e->getMessage());
             }
         }
 

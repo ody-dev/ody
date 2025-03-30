@@ -7,6 +7,7 @@ namespace Ody\AMQP;
 use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use Psr\Log\LoggerInterface;
 use Swoole\Lock;
 use Swoole\Timer;
 use Throwable;
@@ -55,7 +56,8 @@ class AMQPConnectionPool
      */
     public function __construct(
         Config                    $config,
-        private ConnectionFactory $connectionFactory
+        private ConnectionFactory $connectionFactory,
+        private LoggerInterface   $logger,
     )
     {
         // Load configuration
@@ -97,7 +99,7 @@ class AMQPConnectionPool
                     // Connection is not healthy, remove it
                     $this->closeConnection($connectionName);
 
-                    logger()->error("[AMQP] Connection error: " . $e->getMessage());
+                    $this->logger->error("[AMQP] Connection error: " . $e->getMessage());
                 }
             }
 
@@ -166,7 +168,7 @@ class AMQPConnectionPool
                     }
                 } catch (Throwable $e) {
                     // Ignore channel closing errors
-                    logger()->error("[AMQP] Error closing channel: " . $e->getMessage());
+                    $this->logger->error("[AMQP] Error closing channel: " . $e->getMessage());
                 }
             }
 
@@ -176,7 +178,7 @@ class AMQPConnectionPool
             }
         } catch (Throwable $e) {
             // Log but continue
-            logger()->error("[AMQP] Error closing connection: " . $e->getMessage());
+            $this->logger->error("[AMQP] Error closing connection: " . $e->getMessage());
         } finally {
             // Remove from pool regardless of errors
             unset($this->connections[$connectionName]);

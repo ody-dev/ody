@@ -101,8 +101,8 @@ class CQRSServiceProvider extends ServiceProvider
             return new EventBus(
                 $app->make(EventHandlerRegistry::class),
                 $this->container,
-                $app->make(MiddlewareProcessor::class),
-                $app->make(LoggerInterface::class)
+                $app->make(LoggerInterface::class),
+                $app->make(MiddlewareProcessor::class)
             );
         });
 

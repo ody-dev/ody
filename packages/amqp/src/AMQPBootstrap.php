@@ -33,7 +33,8 @@ class AMQPBootstrap
             $this->messageProcessor,
             $this->taskManager,
             $this->processManager,
-            $this->connectionFactory
+            $this->connectionFactory,
+            $this->logger
         );
     }
 

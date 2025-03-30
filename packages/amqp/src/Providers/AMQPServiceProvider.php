@@ -112,7 +112,8 @@ class AMQPServiceProvider extends ServiceProvider
                 $this->container->get(MessageProcessor::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 
@@ -122,7 +123,8 @@ class AMQPServiceProvider extends ServiceProvider
                 $this->container->get(PooledMessageProcessor::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 

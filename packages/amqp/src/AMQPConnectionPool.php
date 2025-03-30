@@ -7,6 +7,7 @@ namespace Ody\AMQP;
 use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use Swoole\Lock;
 use Swoole\Timer;
 
 /**
@@ -71,19 +72,31 @@ class AMQPConnectionPool
      */
     public function getConnection(string $connectionName = 'default'): AMQPStreamConnection
     {
-        $this->startGarbageCollection();
+        $mutex = new Lock(Lock::MUTEX);
+        $mutex->lock();
 
-        // Check if we have a valid connection in the pool
-        if (isset($this->connections[$connectionName]) &&
-            $this->connections[$connectionName]['connection']->isConnected()) {
+        try {
+            // Check if we have a valid connection in the pool
+            if (isset($this->connections[$connectionName]) &&
+                $this->connections[$connectionName]['connection']->isConnected()) {
 
-            // Update last used time
-            $this->connections[$connectionName]['lastUsed'] = time();
-            return $this->connections[$connectionName]['connection'];
+                // Update last used time
+                $this->connections[$connectionName]['lastUsed'] = time();
+                $connection = $this->connections[$connectionName]['connection'];
+
+                $mutex->unlock();
+                return $connection;
+            }
+
+            // Create a new connection
+            $connection = $this->createNewConnection($connectionName);
+
+            $mutex->unlock();
+            return $connection;
+        } catch (\Throwable $e) {
+            $mutex->unlock();
+            throw $e;
         }
-
-        // Create a new connection
-        return $this->createNewConnection($connectionName);
     }
 
     /**

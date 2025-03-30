@@ -31,13 +31,7 @@ Here's a simple example of a custom logger that logs to Redis:
 
 namespace App\Logging;
 
-use Ody\Logger\AbstractLogger;
-use Ody\Logger\FormatterInterface;
-use Ody\Logger\JsonFormatter;
-use Ody\Logger\LineFormatter;
-use Psr\Log\LoggerInterface;
-use Psr\Log\LogLevel;
-use Redis;
+use Ody\Logger\AbstractLogger;use Ody\Logger\Formatters\FormatterInterface;use Ody\Logger\Formatters\JsonFormatter;use Ody\Logger\Formatters\LineFormatter;use Psr\Log\LoggerInterface;use Psr\Log\LogLevel;use Redis;
 
 class RedisLogger extends AbstractLogger
 {
@@ -243,7 +237,7 @@ If the standard formatters don't meet your needs, you can create your own by imp
 ```php
 namespace App\Logging;
 
-use Ody\Logger\FormatterInterface;
+use Ody\Logger\Formatters\FormatterInterface;
 
 class CustomFormatter implements FormatterInterface
 {

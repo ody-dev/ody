@@ -9,8 +9,11 @@
 
 namespace Ody\Logger;
 
-use Psr\Log\LogLevel;
+use Ody\Logger\Formatters\FormatterInterface;
+use Ody\Logger\Formatters\JsonFormatter;
+use Ody\Logger\Formatters\LineFormatter;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 
 /**
  * Callable Logger

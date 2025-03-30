@@ -24,8 +24,8 @@ class EventBus implements EventBusInterface
     public function __construct(
         private EventHandlerRegistry $handlerRegistry,
         private Container            $container,
+        private LoggerInterface $logger,
         private ?MiddlewareProcessor $middlewareProcessor = null,
-        private LoggerInterface      $logger
     )
     {
     }

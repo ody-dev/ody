@@ -16,6 +16,7 @@ use Ody\Foundation\Providers\ServiceProvider;
 use Ody\Process\ProcessManager;
 use Ody\Support\Config;
 use Ody\Task\TaskManager;
+use Psr\Log\LoggerInterface;
 
 class AMQPServiceProvider extends ServiceProvider
 {
@@ -48,7 +49,8 @@ class AMQPServiceProvider extends ServiceProvider
         $this->container->singleton(AMQPConnectionPool::class, function () {
             $pool = new AMQPConnectionPool(
                 $this->container->get(Config::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
 
             // Configure the pool based on config
@@ -67,7 +69,8 @@ class AMQPServiceProvider extends ServiceProvider
         $this->container->singleton(AMQPChannelPool::class, function () {
             $pool = new AMQPChannelPool(
                 $this->container->get(AMQPConnectionPool::class),
-                $this->container->get(Config::class)
+                $this->container->get(Config::class),
+                $this->container->make(LoggerInterface::class)
             );
 
             // Configure the pool based on config
@@ -85,7 +88,8 @@ class AMQPServiceProvider extends ServiceProvider
                 $this->container->get(Config::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 
@@ -108,7 +112,8 @@ class AMQPServiceProvider extends ServiceProvider
                 $this->container->get(MessageProcessor::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 
@@ -118,7 +123,8 @@ class AMQPServiceProvider extends ServiceProvider
                 $this->container->get(PooledMessageProcessor::class),
                 $this->container->get(TaskManager::class),
                 $this->container->get(ProcessManager::class),
-                $this->container->get(ConnectionFactory::class)
+                $this->container->get(ConnectionFactory::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 
@@ -130,12 +136,14 @@ class AMQPServiceProvider extends ServiceProvider
 
             if ($usePooling) {
                 return new ProducerService(
-                    $this->container->get(PooledAMQPManager::class)
+                    $this->container->get(PooledAMQPManager::class),
+                    $this->container->make(LoggerInterface::class)
                 );
             }
 
             return new ProducerService(
-                $this->container->get(AMQPManager::class)
+                $this->container->get(AMQPManager::class),
+                $this->container->make(LoggerInterface::class)
             );
         });
 

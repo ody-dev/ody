@@ -4,6 +4,7 @@ namespace Ody\AMQP;
 
 use Ody\Process\ProcessManager;
 use Ody\Task\TaskManager;
+use Psr\Log\LoggerInterface;
 
 /**
  * Modified AMQPManager with connection pooling
@@ -17,14 +18,16 @@ class PooledAMQPManager extends AMQPManager
         protected PooledMessageProcessor $pooledMessageProcessor,
         protected TaskManager            $taskManager,
         ProcessManager                   $processManager,
-        ConnectionFactory                $connectionFactory
+        ConnectionFactory $connectionFactory,
+        LoggerInterface   $logger
     )
     {
         parent::__construct(
             $pooledMessageProcessor,
             $taskManager,
             $processManager,
-            $connectionFactory
+            $connectionFactory,
+            $logger
         );
     }
 

@@ -228,7 +228,7 @@ ODY Logger includes multiple formatters to structure your log messages:
 Formats logs as text lines with customizable format:
 
 ```php
-use Ody\Logger\LineFormatter;
+use Ody\Logger\Formatters\LineFormatter;
 
 $formatter = new LineFormatter(
     "[%datetime%] [%level%] %message% %context%", // Format string
@@ -241,7 +241,7 @@ $formatter = new LineFormatter(
 Formats logs as JSON objects for easier parsing:
 
 ```php
-use Ody\Logger\JsonFormatter;
+use Ody\Logger\Formatters\JsonFormatter;
 
 $formatter = new JsonFormatter();
 ```

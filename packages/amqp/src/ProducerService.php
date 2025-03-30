@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ody\AMQP;
 
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 use ReflectionClass;
 use Throwable;
 
@@ -28,6 +29,7 @@ class ProducerService
      */
     public function __construct(
         AMQPManager $amqpManager,
+        private LoggerInterface $logger,
         string      $defaultConnectionName = 'default'
     )
     {
@@ -87,7 +89,7 @@ class ProducerService
             return $this->amqpManager->produce($producer, $connectionName);
         } catch (Throwable $e) {
             // Log error
-            logger()->error("Error producing message: " . $e->getMessage());
+            $this->logger->error("Error producing message: " . $e->getMessage());
             return false;
         }
     }

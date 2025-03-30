@@ -2,8 +2,8 @@
 
 namespace Ody\CQRS\Api;
 
-use Ody\CQRS\Interfaces\CommandBus;
-use Ody\CQRS\Interfaces\QueryBus;
+use Ody\CQRS\Interfaces\CommandBusInterface;
+use Ody\CQRS\Interfaces\QueryBusInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -12,12 +12,12 @@ use Psr\Http\Message\ServerRequestInterface;
 class CqrsApiAdapter
 {
     /**
-     * @param CommandBus $commandBus
-     * @param QueryBus $queryBus
+     * @param CommandBusInterface $commandBus
+     * @param QueryBusInterface $queryBus
      */
     public function __construct(
-        protected readonly CommandBus $commandBus,
-        protected readonly QueryBus   $queryBus
+        protected readonly CommandBusInterface $commandBus,
+        protected readonly QueryBusInterface   $queryBus
     )
     {
     }

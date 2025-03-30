@@ -12,8 +12,8 @@ use Ody\CQRS\Api\Documentation\ApiEndpoint;
 use Ody\CQRS\Api\Middleware\RequestMappingConfigFactory;
 use Ody\CQRS\Api\Middleware\RequestMappingMiddleware;
 use Ody\CQRS\Api\Middleware\ResponseFormattingMiddleware;
-use Ody\CQRS\Interfaces\CommandBus;
-use Ody\CQRS\Interfaces\QueryBus;
+use Ody\CQRS\Interfaces\CommandBusInterface;
+use Ody\CQRS\Interfaces\QueryBusInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -107,9 +107,9 @@ class UserController extends CqrsController
 class ApiSetupExample
 {
     public function setupMiddleware(
-        CommandBus        $commandBus,
-        QueryBus          $queryBus,
-        ResponseInterface $response
+        CommandBusInterface $commandBus,
+        QueryBusInterface   $queryBus,
+        ResponseInterface   $response
     ): array
     {
         // Create the CQRS adapter
@@ -136,8 +136,8 @@ class ApiSetupExample
      * Example of how to generate OpenAPI documentation
      */
     public function generateApiDocs(
-        CommandBus $commandBus,
-        QueryBus   $queryBus
+        CommandBusInterface $commandBus,
+        QueryBusInterface   $queryBus
     ): string
     {
         $generator = new \Ody\CQRS\Api\Documentation\OpenApiGenerator(

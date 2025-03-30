@@ -109,12 +109,12 @@ use App\Queries\GetUserById;
 use Ody\CQRS\Attributes\CommandHandler;
 use Ody\CQRS\Attributes\EventHandler;
 use Ody\CQRS\Attributes\QueryHandler;
-use Ody\CQRS\Interfaces\EventBus;
+use Ody\CQRS\Interfaces\EventBusInterface;
 
 class UserService
 {
     #[CommandHandler]
-    public function createUser(CreateUserCommand $command, EventBus $eventBus)
+    public function createUser(CreateUserCommand $command, EventBusInterface $eventBus)
     {
         $user = User::create([
             'name' => $command->getName(),
@@ -147,16 +147,16 @@ namespace App\Controllers;
 
 use App\Commands\CreateUserCommand;
 use App\Queries\GetUserById;
-use Ody\CQRS\Interfaces\CommandBus;
-use Ody\CQRS\Interfaces\QueryBus;
+use Ody\CQRS\Interfaces\CommandBusInterface;
+use Ody\CQRS\Interfaces\QueryBusInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class UserController
 {
     public function __construct(
-        private readonly CommandBus $commandBus,
-        private readonly QueryBus   $queryBus
+        private readonly CommandBusInterface $commandBus,
+        private readonly QueryBusInterface   $queryBus
     ) {}
 
     public function createUser(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

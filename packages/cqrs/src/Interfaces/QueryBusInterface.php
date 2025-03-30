@@ -4,7 +4,7 @@ namespace Ody\CQRS\Interfaces;
 
 use Ody\CQRS\Handler\Registry\QueryHandlerRegistry;
 
-interface QueryBus
+interface QueryBusInterface
 {
     public function dispatch(object $query): mixed;
 

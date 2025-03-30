@@ -6,8 +6,9 @@ use Ody\CQRS\Exception\CommandHandlerException;
 use Ody\CQRS\Exception\HandlerNotFoundException;
 use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;
 use Ody\CQRS\Handler\Resolver\CommandHandlerResolver;
-use Ody\CQRS\Interfaces\CommandBus as CommandBusInterface;
+use Ody\CQRS\Interfaces\CommandBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
+use Throwable;
 
 class CommandBus implements CommandBusInterface
 {
@@ -47,7 +48,7 @@ class CommandBus implements CommandBusInterface
      * @param object $command
      * @return void
      * @throws HandlerNotFoundException
-     * @throws CommandHandlerException
+     * @throws CommandHandlerException|Throwable
      */
     public function dispatch(object $command): void
     {
@@ -71,12 +72,10 @@ class CommandBus implements CommandBusInterface
                     'executeHandler',
                     [$command, $handlerInfo],
                     function ($args) {
-                        return $this->executeHandler(...$args);
+                        $this->executeHandler(...$args);
                     }
                 );
-            } catch (CommandHandlerException $e) {
-                throw $e;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 throw new CommandHandlerException(
                     sprintf('Error handling command %s: %s', $commandClass, $e->getMessage()),
                     0,
@@ -95,14 +94,14 @@ class CommandBus implements CommandBusInterface
      * @param object $command The command to handle
      * @param array $handlerInfo The handler information
      * @return void
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function executeHandler(object $command, array $handlerInfo): void
     {
         try {
             $handler = $this->handlerResolver->resolveHandler($handlerInfo);
             $handler($command);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             throw $e;
         }
     }

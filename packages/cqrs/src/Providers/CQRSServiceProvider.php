@@ -14,9 +14,9 @@ use Ody\CQRS\Handler\Registry\EventHandlerRegistry;
 use Ody\CQRS\Handler\Registry\QueryHandlerRegistry;
 use Ody\CQRS\Handler\Resolver\CommandHandlerResolver;
 use Ody\CQRS\Handler\Resolver\QueryHandlerResolver;
-use Ody\CQRS\Interfaces\CommandBus as CommandBusInterface;
-use Ody\CQRS\Interfaces\EventBus as EventBusInterface;
-use Ody\CQRS\Interfaces\QueryBus as QueryBusInterface;
+use Ody\CQRS\Interfaces\CommandBusInterface;
+use Ody\CQRS\Interfaces\EventBusInterface;
+use Ody\CQRS\Interfaces\QueryBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
 use Ody\CQRS\Middleware\MiddlewareRegistry;
 use Ody\CQRS\Middleware\PointcutResolver;
@@ -75,25 +75,23 @@ class CQRSServiceProvider extends ServiceProvider
         // Register the query handler resolver
         $this->container->singleton(QueryHandlerResolver::class);
 
-        // Break circular dependency with EventBus
-        // First register a very simple EventBus that does nothing
-        $this->container->singleton('simple.event.bus', function () {
-            return new class implements EventBusInterface {
-                public function publish(object $event): void
-                {
-                    // Do nothing, this is just a placeholder
-                }
-            };
-        });
-
-        // Now register CommandHandlerResolver with the simple EventBus
-        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
-            return new CommandHandlerResolver(
-                $app,
-                $app->make(EventBusInterface::class)
+        // First register EventBus
+        $this->container->singleton(EventBusInterface::class, function ($app) {
+            return new EventBus(
+                $app->make(EventHandlerRegistry::class),
+                $this->container,
+                $app->make(MiddlewareProcessor::class)
             );
         });
 
+        // Then register CommandHandlerResolver that might need EventBus
+        $this->container->singleton(CommandHandlerResolver::class, function ($app) {
+            return new CommandHandlerResolver(
+                $app
+            );
+        });
+
+        // Finally register CommandBus and QueryBus
         $this->container->singleton(CommandBusInterface::class, function ($app) {
             return new CommandBus(
                 $app->make(CommandHandlerRegistry::class),
@@ -106,14 +104,6 @@ class CQRSServiceProvider extends ServiceProvider
             return new QueryBus(
                 $app->make(QueryHandlerRegistry::class),
                 $app->make(QueryHandlerResolver::class),
-                $app->make(MiddlewareProcessor::class)
-            );
-        });
-
-        $this->container->singleton(EventBusInterface::class, function ($app) {
-            return new EventBus(
-                $app->make(EventHandlerRegistry::class),
-                $this->container,
                 $app->make(MiddlewareProcessor::class)
             );
         });

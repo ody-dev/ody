@@ -6,7 +6,7 @@ use Ody\CQRS\Exception\HandlerNotFoundException;
 use Ody\CQRS\Exception\QueryHandlerException;
 use Ody\CQRS\Handler\Registry\QueryHandlerRegistry;
 use Ody\CQRS\Handler\Resolver\QueryHandlerResolver;
-use Ody\CQRS\Interfaces\QueryBus as QueryBusInterface;
+use Ody\CQRS\Interfaces\QueryBusInterface as QueryBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
 
 class QueryBus implements QueryBusInterface

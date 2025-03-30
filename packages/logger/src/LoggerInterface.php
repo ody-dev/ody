@@ -9,9 +9,8 @@
 
 namespace Ody\Logger;
 
+use Ody\Logger\Formatters\FormatterInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
-use Psr\Log\LogLevel;
-use Psr\Log\AbstractLogger;
 
 /**
  * Logger Interface with Swoole-ready methods

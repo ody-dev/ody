@@ -8,81 +8,53 @@
  */
 
 namespace Ody\Logger;
+// Assuming this is the correct namespace
 
-use Psr\Log\LogLevel;
+// Monolog specific uses
+use InvalidArgumentException;
+use Monolog\Formatter\FormatterInterface as MonologFormatterInterface;
+use Monolog\Handler\HandlerInterface as MonologHandlerInterface;
+use Monolog\Handler\StreamHandler;
+use Monolog\Level as MonologLevel;
+use Monolog\Logger as MonologLogger;
+use Monolog\Processor\ProcessorInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
+use Throwable;
+
+// Example handler
+
+// Example formatter
+
+// PSR interfaces
 
 /**
- * LogManager with enhanced driver discovery
- * Factory and manager for loggers with support for self-registering drivers
+ * LogManager focused exclusively on Monolog configuration.
+ * Factory and manager for Monolog loggers.
  */
 class LogManager
 {
     /**
-     * @var array Default configuration
+     * @var array Default configuration structure (examples using Monolog)
      */
-    protected array $config = [
-        'default' => 'file',
-        'channels' => [
-            'file' => [
-                'driver' => 'file',
-                'path' => 'logs/app.log',
-                'level' => LogLevel::DEBUG,
-                'formatter' => 'line',
-                'rotate' => false,
-                'max_file_size' => 10485760
-            ],
-            'stdout' => [
-                'driver' => 'stream',
-                'stream' => 'php://stdout',
-                'level' => LogLevel::DEBUG,
-                'formatter' => 'line'
-            ],
-            'stderr' => [
-                'driver' => 'stream',
-                'stream' => 'php://stderr',
-                'level' => LogLevel::ERROR,
-                'formatter' => 'line'
-            ],
-            'daily' => [
-                'driver' => 'file',
-                'path' => 'logs/daily-',
-                'level' => LogLevel::DEBUG,
-                'formatter' => 'line',
-                'rotate' => true,
-                'max_file_size' => 5242880
-            ],
-        ]
-    ];
+    protected array $config = [];
 
     /**
-     * @var LoggerInterface[] Array of created loggers
+     * @var LoggerInterface[] Array of created logger instances (keyed by channel name)
      */
     protected array $loggers = [];
 
     /**
-     * @var array Custom driver to class mappings
-     */
-    protected array $driverMap = [];
-
-    /**
-     * @var bool Whether we're in debug mode
+     * @var bool Whether we're in debug mode (affects error reporting)
      */
     protected bool $debug = false;
 
     /**
-     * @var bool Flag to prevent circular resolution of channels
+     * @var array Tracks channels currently being resolved to prevent circular dependencies
      */
     protected array $resolvingChannels = [];
 
-    /**
-     * @var array Default namespaces to search for logger classes
-     */
-    protected array $namespaces = [
-        '\\Ody\\Foundation\\Logging\\',
-        '\\App\\Logging\\',
-    ];
 
     /**
      * Constructor
@@ -91,87 +63,57 @@ class LogManager
      */
     public function __construct(array $config = [])
     {
-        // Merge custom config with defaults
+        // Merge provided config with defaults
         $this->config = array_replace_recursive($this->config, $config);
 
-        // Set debug mode
-        $this->debug = (bool)env('APP_DEBUG', false);
-
-        // Initialize default driver map for built-in loggers
-        $this->initDefaultDriverMap();
+        // Determine debug mode from config or environment variable
+        $this->debug = (bool)($this->config['debug'] ?? env('APP_DEBUG', false));
     }
 
     /**
-     * Initialize default driver map for built-in loggers
+     * Get a logger instance for the specified channel.
      *
-     * @return void
-     */
-    protected function initDefaultDriverMap(): void
-    {
-        $this->driverMap = [
-            'file' => FileLogger::class,
-            'stream' => StreamLogger::class,
-            'null' => NullLogger::class,
-            'group' => GroupLogger::class,
-            'callable' => CallableLogger::class
-        ];
-    }
-
-    /**
-     * Get a logger instance
-     *
-     * @param string|null $channel Channel name or null for default
-     * @return LoggerInterface
+     * @param string|null $channel Channel name or null for the default channel.
+     * @return LoggerInterface The resolved logger instance (or NullLogger on failure).
      */
     public function channel(?string $channel = null): LoggerInterface
     {
-        // Use default channel if none specified
-        $channel = $channel ?? $this->config['default'];
+        // Determine the channel name (use default if null)
+        $channel = $channel ?? $this->config['default'] ?? 'stack'; // Sensible default
 
-        // If channel doesn't exist in config, fail gracefully
+        // Check if the channel configuration exists
         if (!isset($this->config['channels'][$channel])) {
-            // Log the error if in debug mode
-            if ($this->debug) {
-                error_log("Log channel '{$channel}' is not defined. Using default channel.");
+            if ($this->debug) { // Only log error in debug mode
+                error_log("[LogManager] Log channel '{$channel}' is not defined. Using NullLogger.");
             }
-
-            // Fallback to default channel
-            $channel = $this->config['default'];
-
-            // If default channel also doesn't exist, use emergency fallback
-            if (!isset($this->config['channels'][$channel])) {
-                if ($this->debug) {
-                    error_log("Default log channel '{$channel}' is not defined. Using NullLogger.");
-                }
-                return new NullLogger();
-            }
+            return new NullLogger(); // Fallback gracefully
         }
 
-        // Return cached instance if available
+        // Return cached instance if already created
         if (isset($this->loggers[$channel])) {
             return $this->loggers[$channel];
         }
 
-        // Detect circular dependencies
+        // Prevent circular dependencies during resolution
         if (isset($this->resolvingChannels[$channel])) {
-            error_log("Circular dependency detected for log channel '{$channel}'. Using NullLogger to break the cycle.");
+            error_log("[LogManager] Circular dependency detected for log channel '{$channel}'. Using NullLogger.");
             return new NullLogger();
         }
 
-        // Mark this channel as being resolved to detect circular dependencies
+        // Mark channel as being resolved
         $this->resolvingChannels[$channel] = true;
 
-        // Create new logger instance
         try {
-            $this->loggers[$channel] = $this->createLogger($channel);
-        } catch (\Throwable $e) {
-            // Log the error
-            error_log("Failed to create logger for channel '{$channel}': " . $e->getMessage());
-
-            // Fallback to NullLogger to avoid disrupting application
+            // Create the logger instance
+            $logger = $this->createLogger($channel);
+            // Cache the created logger
+            $this->loggers[$channel] = $logger;
+        } catch (Throwable $e) {
+            // Log the creation failure and provide a NullLogger fallback
+            error_log("[LogManager] Failed to create logger for channel '{$channel}': " . $e->getMessage() . "\n" . $e->getTraceAsString());
             $this->loggers[$channel] = new NullLogger();
         } finally {
-            // Done resolving this channel
+            // Ensure the resolving flag is removed regardless of success/failure
             unset($this->resolvingChannels[$channel]);
         }
 
@@ -179,213 +121,359 @@ class LogManager
     }
 
     /**
-     * Create a new logger instance based on config
+     * Create a logger instance based on its configuration.
      *
-     * @param string $channel
+     * @param string $channel The name of the channel to create.
      * @return LoggerInterface
+     * @throws InvalidArgumentException If the driver is missing or unsupported.
      */
     protected function createLogger(string $channel): LoggerInterface
     {
+        // Get the configuration for this specific channel
         $config = $this->config['channels'][$channel];
+        // Determine the driver ('monolog', 'stack', 'null')
+        $driver = $config['driver'] ?? null;
 
-        if (!isset($config['driver'])) {
-            throw new \InvalidArgumentException("Log channel '{$channel}' has no driver specified");
+        if (!$driver) {
+            throw new InvalidArgumentException("Log channel '{$channel}' has no driver specified.");
         }
 
-        $driver = $config['driver'];
-
-        // Special case for group/stack driver since it needs access to the LogManager
-        if ($driver === 'group' || $driver === 'stack') {
-            return $this->createGroupLogger($config);
+        // Route to the appropriate creator method
+        switch ($driver) {
+            case 'monolog':
+                return $this->createMonologLogger($channel, $config);
+            case 'stack':
+                return $this->createStackLogger($channel, $config);
+            case 'null':
+                return new NullLogger();
+            default:
+                // Only Monolog, stack, and null drivers are now supported
+                throw new InvalidArgumentException("Unsupported log driver '{$driver}' specified for channel '{$channel}'. Only 'monolog', 'stack', or 'null' are supported.");
         }
-
-        // 1. If explicit class is defined in config, use it directly
-        if (isset($config['class'])) {
-            return $this->createLoggerFromClass($config['class'], $config);
-        }
-
-        // 2. Check the driver map for registered loggers
-        if (isset($this->driverMap[$driver])) {
-            return $this->createLoggerFromClass($this->driverMap[$driver], $config);
-        }
-
-        // 3. Try to auto-discover the logger class by convention
-        $loggerClass = $this->discoverLoggerClass($driver);
-        if ($loggerClass) {
-            return $this->createLoggerFromClass($loggerClass, $config);
-        }
-
-        // 4. Cannot find an appropriate logger
-        throw new \InvalidArgumentException("Log driver '{$driver}' is not supported and no matching class was found");
     }
 
     /**
-     * Attempt to discover a logger class by convention
+     * Create a Monolog logger instance with configured handler, formatter, and processors.
      *
-     * @param string $driver
-     * @return string|null The fully qualified class name if found, null otherwise
+     * @param string $channel The channel name (used as Monolog logger name).
+     * @param array $config The configuration for this channel.
+     * @return MonologLogger
+     * @throws InvalidArgumentException If handler or formatter classes are invalid.
+     * @throws Throwable If handler instantiation fails.
      */
-    protected function discoverLoggerClass(string $driver): ?string
+    protected function createMonologLogger(string $channel, array $config): MonologLogger
     {
-        $className = ucfirst($driver) . 'Logger';
+        // Create the base Monolog logger instance
+        $logger = new MonologLogger($channel);
 
-        foreach ($this->namespaces as $namespace) {
-            $fullyQualifiedClass = $namespace . $className;
-            if (class_exists($fullyQualifiedClass) &&
-                method_exists($fullyQualifiedClass, 'create')) {
-                return $fullyQualifiedClass;
+        // --- 1. Create Handler ---
+        $handlerClass = $config['handler'] ?? StreamHandler::class; // Sensible default
+        if (!class_exists($handlerClass) || !is_subclass_of($handlerClass, MonologHandlerInterface::class)) {
+            throw new InvalidArgumentException("Invalid Monolog handler class specified for channel '{$channel}': {$handlerClass}");
+        }
+
+        // Prepare arguments for the handler's constructor from the 'with' config key
+        $handlerArgsConfig = $config['with'] ?? [];
+        $preparedArgs = $this->prepareMonologConstructorArgs($handlerArgsConfig, $channel);
+
+        /** @var MonologHandlerInterface $handler */
+        try {
+            // Instantiate the handler, attempting common handlers explicitly first for robustness
+            if ($handlerClass === StreamHandler::class) {
+                if (!isset($preparedArgs['stream'])) {
+                    throw new InvalidArgumentException("Missing 'stream' configuration in 'with' key for StreamHandler channel '{$channel}'.");
+                }
+                // Extract arguments for StreamHandler constructor
+                $stream = $preparedArgs['stream'];
+                $level = $preparedArgs['level'] ?? MonologLevel::Debug; // Initial level, overridden below
+                $bubble = $preparedArgs['bubble'] ?? true;
+                $filePermission = $preparedArgs['filePermission'] ?? null;
+                $useLocking = $preparedArgs['useLocking'] ?? false;
+                $handler = new StreamHandler($stream, $level, $bubble, $filePermission, $useLocking);
+            } else {
+                // Fallback for other handlers using prepared arguments and order
+                $handler = new $handlerClass(...array_values($preparedArgs));
+            }
+        } catch (Throwable $e) {
+            // Catch ArgumentCountError or other instantiation issues
+            error_log("[LogManager] Failed to instantiate handler '{$handlerClass}' for channel '{$channel}'. Check 'with' config. Error: {$e->getMessage()}");
+            throw $e; // Re-throw critical error
+        }
+
+        // --- Explicitly Set Handler Level ---
+        // Use the top-level 'level' key from the channel config for the handler's minimum level
+        $handlerLevelConfig = $config['level'] ?? LogLevel::DEBUG; // Default to DEBUG
+        try {
+            $monologLevel = $this->psrToMonologLevel($handlerLevelConfig);
+            // Set the level on the handler instance
+            if (method_exists($handler, 'setLevel')) {
+                $handler->setLevel($monologLevel);
+            } elseif (!isset($preparedArgs['level'])) { // Check if level was already set via constructor
+                // Warn if level couldn't be set and wasn't in constructor args
+                error_log("[LogManager] Handler '{$handlerClass}' for channel '{$channel}' might not support setLevel() and level was not passed in 'with'. Using handler's default level.");
+            }
+        } catch (InvalidArgumentException $e) {
+            // Handle invalid level string from config
+            error_log("[LogManager] Invalid log level '{$handlerLevelConfig}' specified for channel '{$channel}'. Defaulting handler to DEBUG. Error: {$e->getMessage()}");
+            if (method_exists($handler, 'setLevel')) {
+                $handler->setLevel(MonologLevel::Debug); // Safe fallback
             }
         }
 
-        return null;
+        // --- 2. Create and Set Formatter ---
+        if (isset($config['formatter'])) {
+            $formatterClass = $config['formatter'];
+            if (!class_exists($formatterClass) || !is_subclass_of($formatterClass, MonologFormatterInterface::class)) {
+                throw new InvalidArgumentException("Invalid Monolog formatter class specified for channel '{$channel}': {$formatterClass}");
+            }
+            // Prepare arguments for the formatter's constructor from 'formatter_with'
+            $formatterArgs = $this->prepareMonologConstructorArgs($config['formatter_with'] ?? [], $channel);
+            /** @var MonologFormatterInterface $formatter */
+            // Instantiate the formatter
+            $formatter = new $formatterClass(...array_values($formatterArgs));
+            // Apply the formatter to the handler
+            $handler->setFormatter($formatter);
+        }
+
+        // --- 3. Push Handler onto Logger ---
+        $logger->pushHandler($handler);
+
+        // --- 4. Add Processors (Optional) ---
+        if (!empty($config['processors']) && is_array($config['processors'])) {
+            foreach ($config['processors'] as $processorEntry) {
+                $processor = $this->resolveProcessor($processorEntry, $channel);
+                if ($processor) {
+                    $logger->pushProcessor($processor);
+                }
+            }
+        }
+
+        return $logger;
     }
 
     /**
-     * Create a logger from a class name
+     * Resolves a processor from configuration entry.
      *
-     * @param string $class
-     * @param array $config
-     * @return LoggerInterface
-     * @throws \InvalidArgumentException If the class doesn't exist or doesn't have a create method
+     * @param mixed $processorEntry Class name, callable, or object.
+     * @param string $channel Channel name for context.
+     * @return callable|ProcessorInterface|null Resolved processor or null if invalid.
      */
-    protected function createLoggerFromClass(string $class, array $config): LoggerInterface
+    protected function resolveProcessor(mixed $processorEntry, string $channel): callable|ProcessorInterface|null
     {
-        if (!class_exists($class)) {
-            throw new \InvalidArgumentException("Logger class '{$class}' does not exist");
+        // Handle class names
+        if (is_string($processorEntry) && class_exists($processorEntry) && is_subclass_of($processorEntry, ProcessorInterface::class)) {
+            try {
+                // Simple instantiation first
+                return new $processorEntry();
+            } catch (Throwable $instantiationError) {
+                error_log("[LogManager] Failed to directly instantiate processor '{$processorEntry}' for channel '{$channel}'. Error: {$instantiationError->getMessage()}");
+                // Optionally, add container resolution here if needed
+                return null;
+            }
+        } // Handle callables
+        elseif (is_callable($processorEntry)) {
+            return $processorEntry;
+        } // Handle already instantiated objects
+        elseif ($processorEntry instanceof ProcessorInterface) {
+            return $processorEntry;
+        } // Log invalid entries
+        else {
+            error_log("[LogManager] Invalid processor specified for channel '{$channel}': " . print_r($processorEntry, true));
+            return null;
+        }
+    }
+
+
+    /**
+     * Prepares arguments for Monolog component constructors, mapping PSR levels and resolving paths.
+     *
+     * @param array $config The 'with' or 'formatter_with' config array.
+     * @param string $channel The channel name (for context in errors).
+     * @return array Prepared arguments.
+     */
+    protected function prepareMonologConstructorArgs(array $config, string $channel): array
+    {
+        $args = $config; // Start with the config values
+
+        // Map PSR LogLevel string to Monolog Level enum/int if 'level' key exists
+        if (isset($args['level'])) {
+            try {
+                $args['level'] = $this->psrToMonologLevel($args['level']);
+            } catch (InvalidArgumentException $e) {
+                error_log("[LogManager] Invalid log level '{$args['level']}' specified in 'with' config for channel '{$channel}'. It will be ignored for constructor. Error: {$e->getMessage()}");
+                unset($args['level']); // Remove invalid level
+            }
         }
 
-        if (!method_exists($class, 'create')) {
-            throw new \InvalidArgumentException("Logger class '{$class}' must have a static 'create' method");
+        // Resolve file paths for 'stream' argument if it's not a special PHP stream
+        if (isset($args['stream']) && is_string($args['stream']) && !str_starts_with($args['stream'], 'php://')) {
+            $args['stream'] = $this->resolveStreamPath($args['stream']);
         }
 
-        return $class::create($config);
+        // Map common boolean string values from env() to actual booleans
+        foreach (['bubble', 'useLocking'] as $key) {
+            if (isset($args[$key]) && is_string($args[$key])) {
+                $args[$key] = filter_var($args[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $args[$key];
+            }
+        }
+
+        return $args;
     }
 
     /**
-     * Create a group logger
+     * Resolves a stream path, prepending storage path if necessary.
      *
-     * @param array $config
-     * @return GroupLogger
+     * @param string $path The stream path from config.
+     * @return string The resolved, absolute path.
      */
-    protected function createGroupLogger(array $config): GroupLogger
+    protected function resolveStreamPath(string $path): string
     {
-        // Ensure channels array exists
-        if (!isset($config['channels']) || !is_array($config['channels']) || empty($config['channels'])) {
-            throw new \InvalidArgumentException("Group logger requires a 'channels' configuration array");
+        // Use storage_path helper if available and path is not absolute
+        if (function_exists('storage_path') && $path[0] !== '/' && !(strlen($path) > 1 && $path[1] === ':')) {
+            return storage_path(ltrim($path, '/'));
+        } // Fallback path construction if storage_path doesn't exist or path is absolute
+        elseif ($path[0] !== '/' && !(strlen($path) > 1 && $path[1] === ':')) {
+            $base = defined('APP_BASE_PATH') ? APP_BASE_PATH : dirname(__DIR__, 4); // Adjust depth as needed
+            $resolvedPath = $base . '/storage/' . ltrim($path, '/'); // Assume storage dir
+            // Ensure the directory exists
+            $logDir = dirname($resolvedPath);
+            if (!is_dir($logDir)) {
+                @mkdir($logDir, 0775, true);
+            }
+            return $resolvedPath;
+        }
+        // Path is already absolute
+        return $path;
+    }
+
+
+    /**
+     * Converts PSR-3 LogLevel strings to Monolog Level enum/int.
+     *
+     * @param string|int $level PSR-3 LogLevel string (or potentially already an int/enum).
+     * @return MonologLevel Monolog Level enum.
+     * @throws InvalidArgumentException If the level string is invalid.
+     */
+    protected function psrToMonologLevel($level): MonologLevel
+    {
+        if ($level instanceof MonologLevel) {
+            return $level; // Already a Monolog level
+        }
+        if (is_int($level)) {
+            // Attempt to convert valid Monolog integer level to Enum
+            try {
+                return MonologLevel::from($level);
+            } catch (\ValueError $e) {
+                throw new InvalidArgumentException("Invalid Monolog integer level provided: {$level}");
+            }
         }
 
-        // Create individual loggers for each channel
-        $loggers = [];
-        $errors = [];
+        $levelStr = strtolower((string)$level);
 
-        foreach ($config['channels'] as $channelName) {
-            // Skip if the channel would cause a circular reference
-            if (isset($this->resolvingChannels[$channelName])) {
-                $errors[] = "Skipped circular reference to channel '{$channelName}'";
+        // Map PSR-3 strings to Monolog Level enums
+        $map = [
+            LogLevel::DEBUG => MonologLevel::Debug,
+            LogLevel::INFO => MonologLevel::Info,
+            LogLevel::NOTICE => MonologLevel::Notice,
+            LogLevel::WARNING => MonologLevel::Warning,
+            LogLevel::ERROR => MonologLevel::Error,
+            LogLevel::CRITICAL => MonologLevel::Critical,
+            LogLevel::ALERT => MonologLevel::Alert,
+            LogLevel::EMERGENCY => MonologLevel::Emergency,
+        ];
+
+        if (!isset($map[$levelStr])) {
+            throw new InvalidArgumentException("Invalid PSR-3 log level string provided: {$level}");
+        }
+
+        return $map[$levelStr];
+    }
+
+
+    /**
+     * Create a stack/group logger (which itself is a Monolog logger).
+     *
+     * @param string $stackChannelName The name for the stack channel itself.
+     * @param array $config The configuration for the stack channel.
+     * @return LoggerInterface Returns MonologLogger if possible, otherwise NullLogger.
+     */
+    protected function createStackLogger(string $stackChannelName, array $config): LoggerInterface
+    {
+        $channels = $config['channels'] ?? [];
+        if (empty($channels) || !is_array($channels)) {
+            throw new InvalidArgumentException("Stack logger '{$stackChannelName}' requires a non-empty 'channels' array configuration.");
+        }
+
+        $handlers = [];
+        $processors = []; // Collect unique processors
+
+        foreach ($channels as $channelName) {
+            // Prevent infinite recursion if a stack includes itself or is currently being resolved
+            if ($channelName === $stackChannelName || isset($this->resolvingChannels[$channelName])) {
+                error_log("[LogManager] Skipping circular reference in stack logger '{$stackChannelName}' for channel '{$channelName}'.");
                 continue;
             }
-
             try {
-                // Check if channel exists in config
-                if (!isset($this->config['channels'][$channelName])) {
-                    $errors[] = "Channel '{$channelName}' not found in configuration";
-                    continue;
+                // Resolve the logger for the sub-channel
+                $loggerInstance = $this->channel($channelName);
+
+                // If the sub-logger is a Monolog instance, aggregate its handlers and processors
+                if ($loggerInstance instanceof MonologLogger) {
+                    $handlers = array_merge($handlers, $loggerInstance->getHandlers());
+                    $processors = array_merge($processors, $loggerInstance->getProcessors());
+                } // Log a warning if a non-Monolog, non-Null logger is included
+                else if (!($loggerInstance instanceof NullLogger)) {
+                    error_log("[LogManager] Stack channel '{$channelName}' in stack '{$stackChannelName}' is not a Monolog logger. Its logs might not be processed by the stack handlers/processors.");
                 }
 
-                // Use channel() which creates and caches loggers
-                $loggers[] = $this->channel($channelName);
-            } catch (\Throwable $e) {
-                $errors[] = "Error creating logger for channel '{$channelName}': " . $e->getMessage();
+            } catch (Throwable $e) {
+                error_log("[LogManager] Error resolving channel '{$channelName}' for stack logger '{$stackChannelName}': " . $e->getMessage());
+                // Decide whether to ignore errors based on config
+                if (!($config['ignore_exceptions'] ?? false)) {
+                    throw $e; // Rethrow if not ignoring exceptions
+                }
             }
         }
 
-        // If we had errors, log them
-        if (!empty($errors)) {
-            foreach ($errors as $error) {
-                error_log("[LogManager] GroupLogger error: " . $error);
+        // If no handlers were collected
+        if (empty($handlers)) {
+            error_log("[LogManager] Stack logger '{$stackChannelName}' created with no valid Monolog handlers.");
+            return new NullLogger(); // Fallback
+        }
+
+        // Create a new Monolog logger for the stack channel
+        $logger = new MonologLogger($stackChannelName);
+        // Set the unique handlers collected from sub-channels
+        $logger->setHandlers(array_values(array_unique($handlers, SORT_REGULAR)));
+
+        // Add unique processors collected from sub-channels
+        $uniqueProcessors = array_values(array_unique($processors, SORT_REGULAR));
+        foreach ($uniqueProcessors as $processor) {
+            if (is_callable($processor) || $processor instanceof ProcessorInterface) {
+                $logger->pushProcessor($processor);
             }
         }
 
-        // We need to create a formatter for the group logger
-        $formatter = $this->createFormatter($config);
-
-        // Create the group logger with the collected channel loggers
-        return new GroupLogger(
-            $loggers,
-            $config['level'] ?? LogLevel::DEBUG,
-            $formatter
-        );
+        return $logger;
     }
 
-    /**
-     * Create a formatter instance based on config
-     *
-     * @param array $config
-     * @return FormatterInterface
-     */
-    protected function createFormatter(array $config): FormatterInterface
-    {
-        $formatterType = $config['formatter'] ?? 'line';
+    // --- Removed Methods related to custom drivers ---
+    // - initDefaultDriverMap (now empty or minimal)
+    // - createCustomLogger
+    // - discoverCustomLoggerClass
+    // - createLoggerFromClassExpectingCreate
+    // - createOdyFormatter
+    // - registerDriver
+    // - registerNamespace
+    // - getDriverMap
+    // - getNamespaces
 
-        switch ($formatterType) {
-            case 'json':
-                return new JsonFormatter();
-
-            case 'line':
-            default:
-                return new LineFormatter(
-                    $config['format'] ?? null,
-                    $config['date_format'] ?? null
-                );
-        }
-    }
+    // --- Methods for managing channels (kept) ---
 
     /**
-     * Register a custom driver mapping
+     * Get the names of all configured channels.
      *
-     * @param string $driver The driver name
-     * @param string $class Fully qualified class name
-     * @return self
-     */
-    public function registerDriver(string $driver, string $class): self
-    {
-        $this->driverMap[$driver] = $class;
-
-        // If this driver was already resolved and cached, clear it
-        // so it will be recreated with the new implementation
-        foreach ($this->loggers as $channel => $logger) {
-            if (isset($this->config['channels'][$channel]['driver']) &&
-                $this->config['channels'][$channel]['driver'] === $driver) {
-                unset($this->loggers[$channel]);
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Register a namespace for auto-discovery
-     *
-     * @param string $namespace
-     * @return self
-     */
-    public function registerNamespace(string $namespace): self
-    {
-        // Ensure namespace ends with \\
-        $namespace = rtrim($namespace, '\\') . '\\';
-
-        // Only add if not already registered
-        if (!in_array($namespace, $this->namespaces)) {
-            $this->namespaces[] = $namespace;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Get available channel names
-     *
-     * @return array
+     * @return array<string>
      */
     public function getChannels(): array
     {
@@ -393,10 +481,10 @@ class LogManager
     }
 
     /**
-     * Check if a channel exists
+     * Check if a channel configuration exists.
      *
-     * @param string $channel
-     * @return bool
+     * @param string $channel The name of the channel.
+     * @return bool True if the channel is configured, false otherwise.
      */
     public function hasChannel(string $channel): bool
     {
@@ -404,41 +492,38 @@ class LogManager
     }
 
     /**
-     * Add a new channel configuration
+     * Add or overwrite a channel configuration dynamically at runtime.
+     * If the channel was already resolved, its cached instance will be cleared.
      *
-     * @param string $channel
-     * @param array $config
+     * @param string $channel The name of the channel to add or modify.
+     * @param array $config The configuration array for the channel. Must include 'driver' key ('monolog', 'stack', 'null').
      * @return self
      */
     public function addChannel(string $channel, array $config): self
     {
-        $this->config['channels'][$channel] = $config;
-
-        // If this channel was already resolved, clear it so it will be recreated next time
-        if (isset($this->loggers[$channel])) {
-            unset($this->loggers[$channel]);
+        if (!isset($config['driver']) || !in_array($config['driver'], ['monolog', 'stack', 'null'])) {
+            error_log("[LogManager] Cannot add channel '{$channel}': Invalid or missing 'driver'. Only 'monolog', 'stack', 'null' supported.");
+            return $this;
         }
-
+        // Store the new configuration
+        $this->config['channels'][$channel] = $config;
+        // Clear any cached instance for this channel
+        unset($this->loggers[$channel]);
         return $this;
     }
 
     /**
-     * Get registered driver mappings
+     * Dynamically pass methods to the default logger instance.
+     * Allows calling `$logManager->info('message')` which forwards to
+     * `$logManager->channel()->info('message')`.
      *
-     * @return array
+     * @param string $method The logging method (e.g., 'info', 'error', 'debug').
+     * @param array $parameters The arguments passed to the method.
+     * @return mixed
      */
-    public function getDriverMap(): array
+    public function __call(string $method, array $parameters)
     {
-        return $this->driverMap;
-    }
-
-    /**
-     * Get registered namespaces
-     *
-     * @return array
-     */
-    public function getNamespaces(): array
-    {
-        return $this->namespaces;
+        // Resolve the default logger channel and call the method on it
+        return $this->channel()->{$method}(...$parameters);
     }
 }

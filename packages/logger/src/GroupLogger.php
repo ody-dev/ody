@@ -9,8 +9,9 @@
 
 namespace Ody\Logger;
 
-use Psr\Log\LogLevel;
+use Ody\Logger\Formatters\FormatterInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 
 /**
  * Group Logger

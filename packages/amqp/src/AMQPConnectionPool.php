@@ -7,7 +7,9 @@ namespace Ody\AMQP;
 use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use Swoole\Lock;
 use Swoole\Timer;
+use Throwable;
 
 /**
  * Connection pool for AMQP connections
@@ -46,6 +48,8 @@ class AMQPConnectionPool
      */
     private ?int $gcTimerId = null;
 
+    private Lock $mutex;
+
     /**
      * Constructor to initialize the connection pool
      */
@@ -59,6 +63,8 @@ class AMQPConnectionPool
         $this->maxPoolSize = $poolConfig['max_connections'] ?? 10;
         $this->maxIdleTime = $poolConfig['max_idle_time'] ?? 60;
 
+        $this->mutex = new Lock(Lock::MUTEX);
+
         // Start garbage collection
         $this->startGarbageCollection();
     }
@@ -68,22 +74,36 @@ class AMQPConnectionPool
      *
      * @param string $connectionName Connection configuration name
      * @return AMQPStreamConnection
+     * @throws Throwable
      */
     public function getConnection(string $connectionName = 'default'): AMQPStreamConnection
     {
-        $this->startGarbageCollection();
+        $this->mutex->lock();
 
-        // Check if we have a valid connection in the pool
-        if (isset($this->connections[$connectionName]) &&
-            $this->connections[$connectionName]['connection']->isConnected()) {
+        try {
+            $this->startGarbageCollection();
 
-            // Update last used time
-            $this->connections[$connectionName]['lastUsed'] = time();
-            return $this->connections[$connectionName]['connection'];
+            // Check if we have a valid connection in the pool
+            if (isset($this->connections[$connectionName]) &&
+                $this->connections[$connectionName]['connection']->isConnected()) {
+
+                // Update last used time
+                $this->connections[$connectionName]['lastUsed'] = time();
+                $connection = $this->connections[$connectionName]['connection'];
+
+                $this->mutex->unlock();
+                return $connection;
+            }
+
+            // Create a new connection
+            $connection = $this->createNewConnection($connectionName);
+
+            $this->mutex->unlock();
+            return $connection;
+        } catch (Throwable $e) {
+            $this->mutex->unlock();
+            throw $e;
         }
-
-        // Create a new connection
-        return $this->createNewConnection($connectionName);
     }
 
     /**
@@ -142,7 +162,7 @@ class AMQPConnectionPool
                     if ($channel->is_open()) {
                         $channel->close();
                     }
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Ignore channel closing errors
                     logger()->error("[AMQP] Error closing channel: " . $e->getMessage());
                 }
@@ -152,7 +172,7 @@ class AMQPConnectionPool
             if ($connectionData['connection']->isConnected()) {
                 $connectionData['connection']->close();
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Log but continue
             logger()->error("[AMQP] Error closing connection: " . $e->getMessage());
         } finally {

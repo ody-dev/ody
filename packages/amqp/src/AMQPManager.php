@@ -5,8 +5,6 @@ namespace Ody\AMQP;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\Process\ProcessManager;
 use Ody\Task\TaskManager;
-use PhpAmqpLib\Channel\AMQPChannel;
-use PhpAmqpLib\Message\AMQPMessage;
 use Throwable;
 
 class AMQPManager
@@ -17,9 +15,10 @@ class AMQPManager
     private array $activeConsumerProcesses = [];
 
     public function __construct(
-        protected MessageProcessor $messageProcessor,
-        protected TaskManager      $taskManager,
-        private ProcessManager     $processManager,
+        protected MessageProcessor         $messageProcessor,
+        protected TaskManager              $taskManager,
+        private readonly ProcessManager    $processManager,
+        private readonly ConnectionFactory $connectionFactory
     ) {}
 
     /**
@@ -64,6 +63,7 @@ class AMQPManager
                 'type' => $consumerAttribute->type,
                 'prefetch_count' => $consumerAttribute->prefetchCount,
                 'task_manager' => $this->taskManager,
+                'connection_factory' => $this->connectionFactory,
             ],
             daemon: true
         );
@@ -74,19 +74,6 @@ class AMQPManager
             'class' => $consumerClass,
             'attribute' => $consumerAttribute,
         ];
-    }
-
-    /**
-     * Process a message using a task
-     */
-    public function processMessage(object $consumer, AMQPMessage $message, AMQPChannel $channel): void
-    {
-        // Create a task to process the message
-//        Task::execute(AMQPMessageTask::class, [
-//            'consumer' => $consumer,
-//            'message' => $message,
-//            'channel' => $channel,
-//        ], Task::PRIORITY_HIGH);
     }
 
     /**

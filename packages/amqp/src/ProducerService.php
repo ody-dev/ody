@@ -26,7 +26,10 @@ class ProducerService
     /**
      * Constructor
      */
-    public function __construct(AMQPManager $amqpManager, string $defaultConnectionName = 'default')
+    public function __construct(
+        AMQPManager $amqpManager,
+        string      $defaultConnectionName = 'default'
+    )
     {
         $this->amqpManager = $amqpManager;
         $this->defaultConnectionName = $defaultConnectionName;
@@ -84,7 +87,7 @@ class ProducerService
             return $this->amqpManager->produce($producer, $connectionName);
         } catch (Throwable $e) {
             // Log error
-            error_log("Error producing message: " . $e->getMessage());
+            logger()->error("Error producing message: " . $e->getMessage());
             return false;
         }
     }

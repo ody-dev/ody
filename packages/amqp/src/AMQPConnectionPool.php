@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
+use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use Swoole\Timer;
@@ -18,27 +19,49 @@ class AMQPConnectionPool
     /**
      * @var array<string, array> Connection pool [connectionName => [connection, lastUsed, channels]]
      */
-    private static array $connections = [];
+    private array $connections = [];
 
     /**
      * @var int Maximum idle time for a connection in seconds
      */
-    private static int $maxIdleTime = 60;
+    private int $maxIdleTime = 60;
 
     /**
      * @var int Maximum connections to keep in the pool
      */
-    private static int $maxPoolSize = 10;
+    private int $maxPoolSize = 10;
 
     /**
      * @var bool Whether the garbage collection timer is running
      */
-    private static bool $gcRunning = false;
+    private bool $gcRunning = false;
 
     /**
      * @var int Timer interval for garbage collection in milliseconds
      */
-    private static int $gcIntervalMs = 15000;
+    private int $gcIntervalMs = 15000;
+
+    /**
+     * @var int|null ID of the GC timer
+     */
+    private ?int $gcTimerId = null;
+
+    /**
+     * Constructor to initialize the connection pool
+     */
+    public function __construct(
+        Config                    $config,
+        private ConnectionFactory $connectionFactory
+    )
+    {
+        // Load configuration
+        $poolConfig = $config->get('amqp.pool', []);
+        $this->maxPoolSize = $poolConfig['max_connections'] ?? 10;
+        $this->maxIdleTime = $poolConfig['max_idle_time'] ?? 60;
+
+        // Start garbage collection
+        $this->startGarbageCollection();
+    }
 
     /**
      * Get a connection from the pool or create a new one
@@ -46,21 +69,21 @@ class AMQPConnectionPool
      * @param string $connectionName Connection configuration name
      * @return AMQPStreamConnection
      */
-    public static function getConnection(string $connectionName = 'default'): AMQPStreamConnection
+    public function getConnection(string $connectionName = 'default'): AMQPStreamConnection
     {
-        self::startGarbageCollection();
+        $this->startGarbageCollection();
 
         // Check if we have a valid connection in the pool
-        if (isset(self::$connections[$connectionName]) &&
-            self::$connections[$connectionName]['connection']->isConnected()) {
+        if (isset($this->connections[$connectionName]) &&
+            $this->connections[$connectionName]['connection']->isConnected()) {
 
             // Update last used time
-            self::$connections[$connectionName]['lastUsed'] = time();
-            return self::$connections[$connectionName]['connection'];
+            $this->connections[$connectionName]['lastUsed'] = time();
+            return $this->connections[$connectionName]['connection'];
         }
 
         // Create a new connection
-        return self::createNewConnection($connectionName);
+        return $this->createNewConnection($connectionName);
     }
 
     /**
@@ -68,17 +91,17 @@ class AMQPConnectionPool
      *
      * @return void
      */
-    private static function startGarbageCollection(): void
+    private function startGarbageCollection(): void
     {
-        if (self::$gcRunning) {
+        if ($this->gcRunning) {
             return;
         }
 
-        Timer::tick(self::$gcIntervalMs, function () {
-            self::garbageCollect();
+        $this->gcTimerId = Timer::tick($this->gcIntervalMs, function () {
+            $this->garbageCollect();
         });
 
-        self::$gcRunning = true;
+        $this->gcRunning = true;
     }
 
     /**
@@ -86,14 +109,14 @@ class AMQPConnectionPool
      *
      * @return void
      */
-    public static function garbageCollect(): void
+    public function garbageCollect(): void
     {
         $now = time();
 
-        foreach (self::$connections as $name => $data) {
+        foreach ($this->connections as $name => $data) {
             // Close connections idle for too long
-            if ($now - $data['lastUsed'] > self::$maxIdleTime) {
-                self::closeConnection($name);
+            if ($now - $data['lastUsed'] > $this->maxIdleTime) {
+                $this->closeConnection($name);
             }
         }
     }
@@ -104,14 +127,14 @@ class AMQPConnectionPool
      * @param string $connectionName Connection configuration name
      * @return void
      */
-    public static function closeConnection(string $connectionName): void
+    public function closeConnection(string $connectionName): void
     {
-        if (!isset(self::$connections[$connectionName])) {
+        if (!isset($this->connections[$connectionName])) {
             return;
         }
 
         try {
-            $connectionData = self::$connections[$connectionName];
+            $connectionData = $this->connections[$connectionName];
 
             // Close all channels
             foreach ($connectionData['channels'] as $channel) {
@@ -134,7 +157,7 @@ class AMQPConnectionPool
             logger()->error("[AMQP] Error closing connection: " . $e->getMessage());
         } finally {
             // Remove from pool regardless of errors
-            unset(self::$connections[$connectionName]);
+            unset($this->connections[$connectionName]);
         }
     }
 
@@ -144,24 +167,24 @@ class AMQPConnectionPool
      * @param string $connectionName Connection configuration name
      * @return AMQPStreamConnection
      */
-    private static function createNewConnection(string $connectionName): AMQPStreamConnection
+    private function createNewConnection(string $connectionName): AMQPStreamConnection
     {
         // Close existing connection if it exists but is broken
-        if (isset(self::$connections[$connectionName])) {
-            self::closeConnection($connectionName);
+        if (isset($this->connections[$connectionName])) {
+            $this->closeConnection($connectionName);
         }
 
         // Create new connection
-        $connection = AMQP::createConnection($connectionName);
+        $connection = $this->connectionFactory->createConnection($connectionName);
 
-        self::$connections[$connectionName] = [
+        $this->connections[$connectionName] = [
             'connection' => $connection,
             'lastUsed' => time(),
             'channels' => [],
         ];
 
         // Ensure we don't exceed the pool size
-        self::enforceSizeLimit();
+        $this->enforceSizeLimit();
 
         return $connection;
     }
@@ -171,23 +194,23 @@ class AMQPConnectionPool
      *
      * @return void
      */
-    private static function enforceSizeLimit(): void
+    private function enforceSizeLimit(): void
     {
-        if (count(self::$connections) <= self::$maxPoolSize) {
+        if (count($this->connections) <= $this->maxPoolSize) {
             return;
         }
 
         // Sort connections by last used time (oldest first)
-        uasort(self::$connections, function ($a, $b) {
+        uasort($this->connections, function ($a, $b) {
             return $a['lastUsed'] <=> $b['lastUsed'];
         });
 
         // Close oldest connections until we're under the limit
-        $connectionsToRemove = count(self::$connections) - self::$maxPoolSize;
+        $connectionsToRemove = count($this->connections) - $this->maxPoolSize;
         $removed = 0;
 
-        foreach (array_keys(self::$connections) as $name) {
-            self::closeConnection($name);
+        foreach (array_keys($this->connections) as $name) {
+            $this->closeConnection($name);
             $removed++;
 
             if ($removed >= $connectionsToRemove) {
@@ -203,13 +226,13 @@ class AMQPConnectionPool
      * @param AMQPChannel $channel Channel to register
      * @return void
      */
-    public static function registerChannel(string $connectionName, AMQPChannel $channel): void
+    public function registerChannel(string $connectionName, AMQPChannel $channel): void
     {
-        if (!isset(self::$connections[$connectionName])) {
+        if (!isset($this->connections[$connectionName])) {
             return;
         }
 
-        self::$connections[$connectionName]['channels'][] = $channel;
+        $this->connections[$connectionName]['channels'][] = $channel;
     }
 
     /**
@@ -217,10 +240,17 @@ class AMQPConnectionPool
      *
      * @return void
      */
-    public static function closeAll(): void
+    public function closeAll(): void
     {
-        foreach (array_keys(self::$connections) as $name) {
-            self::closeConnection($name);
+        foreach (array_keys($this->connections) as $name) {
+            $this->closeConnection($name);
+        }
+
+        // Stop the GC timer
+        if ($this->gcTimerId !== null) {
+            Timer::clear($this->gcTimerId);
+            $this->gcTimerId = null;
+            $this->gcRunning = false;
         }
     }
 
@@ -229,14 +259,14 @@ class AMQPConnectionPool
      *
      * @return array
      */
-    public static function getStats(): array
+    public function getStats(): array
     {
         $stats = [
-            'total_connections' => count(self::$connections),
+            'total_connections' => count($this->connections),
             'connections' => [],
         ];
 
-        foreach (self::$connections as $name => $data) {
+        foreach ($this->connections as $name => $data) {
             $stats['connections'][$name] = [
                 'connected' => $data['connection']->isConnected(),
                 'last_used' => date('Y-m-d H:i:s', $data['lastUsed']),
@@ -254,10 +284,10 @@ class AMQPConnectionPool
      * @param int $size Maximum number of connections to keep in the pool
      * @return void
      */
-    public static function setMaxPoolSize(int $size): void
+    public function setMaxPoolSize(int $size): void
     {
-        self::$maxPoolSize = max(1, $size);
-        self::enforceSizeLimit();
+        $this->maxPoolSize = max(1, $size);
+        $this->enforceSizeLimit();
     }
 
     /**
@@ -266,8 +296,36 @@ class AMQPConnectionPool
      * @param int $seconds Maximum idle time in seconds
      * @return void
      */
-    public static function setMaxIdleTime(int $seconds): void
+    public function setMaxIdleTime(int $seconds): void
     {
-        self::$maxIdleTime = max(10, $seconds);
+        $this->maxIdleTime = max(10, $seconds);
+    }
+
+    /**
+     * Set the garbage collection interval
+     *
+     * @param int $milliseconds Garbage collection interval in milliseconds
+     * @return void
+     */
+    public function setGarbageCollectionInterval(int $milliseconds): void
+    {
+        $this->gcIntervalMs = max(1000, $milliseconds);
+
+        // Restart GC with new interval if running
+        if ($this->gcRunning && $this->gcTimerId !== null) {
+            Timer::clear($this->gcTimerId);
+            $this->gcRunning = false;
+            $this->startGarbageCollection();
+        }
+    }
+
+    /**
+     * Destructor to ensure timers are cleaned up
+     */
+    public function __destruct()
+    {
+        if ($this->gcTimerId !== null) {
+            Timer::clear($this->gcTimerId);
+        }
     }
 }

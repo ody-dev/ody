@@ -23,13 +23,15 @@ class AMQPBootstrap
         private Config $config,
         private TaskManager    $taskManager,
         private ProcessManager $processManager,
+        private ConnectionFactory $connectionFactory,
     )
     {
         $this->messageProcessor = new MessageProcessor($this->taskManager);
         $this->amqpManager = new AMQPManager(
             $this->messageProcessor,
             $this->taskManager,
-            $this->processManager
+            $this->processManager,
+            $this->connectionFactory
         );
     }
 
@@ -173,7 +175,7 @@ class AMQPBootstrap
     private function resolveBasePath(string $path): string
     {
         // If path is already absolute, return it
-        if (strpos($path, '/') === 0) {
+        if (str_starts_with($path, '/')) {
             return $path;
         }
 

@@ -101,6 +101,21 @@ class PooledMessageProcessor extends MessageProcessor
             logger()->error("Error producing AMQP message: " . $e->getMessage());
             logger()->error($e->getTraceAsString());
 
+            // Clean up
+            try {
+                if ($channel->is_open()) {
+                    $channel->close();
+                }
+
+                if (isset($connection) && $connection->isConnected()) {
+                    $connection->close();
+                }
+            } catch (\Throwable $cleanup) {
+                // Ignore cleanup errors
+                logger()->error("Error producing AMQP message: " . $e->getMessage());
+                logger()->error($e->getTraceAsString());
+            }
+
             return false;
         }
     }

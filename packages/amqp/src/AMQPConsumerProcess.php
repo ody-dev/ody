@@ -8,7 +8,6 @@ use Exception;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\AMQP\Message\Result;
 use Ody\Process\StandardProcess;
-use Ody\Task\TaskManager;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exception\AMQPChannelClosedException;
@@ -22,17 +21,61 @@ use Throwable;
 
 class AMQPConsumerProcess extends StandardProcess
 {
+    /**
+     * @var string|mixed
+     */
     protected string $consumerClass;
+
+    /**
+     * @var Consumer|mixed
+     */
     protected Consumer $consumerAttribute;
+
+    /**
+     * @var string|mixed
+     */
     protected string $connectionName;
-    private TaskManager $taskManager;
+
+    /**
+     * @var ConnectionFactory|mixed
+     */
+    private ConnectionFactory $connectionFactory;
+
+    /**
+     * @var AMQPChannel|null
+     */
     private ?AMQPChannel $channel = null;
+
+    /**
+     * @var AMQPStreamConnection|null
+     */
     private ?AMQPStreamConnection $connection = null;
+
+    /**
+     * @var bool
+     */
     private bool $serverReady = false;
+
+    /**
+     * @var bool
+     */
     private bool $reconnecting = false;
+
+    /**
+     * @var int|null
+     */
     private ?int $heartbeatTimerId = null;
+
+    /**
+     * @var int
+     */
     private int $lastActivityTime = 0;
+
+    /**
+     * @var int
+     */
     private int $reconnectAttempts = 0;
+
     private const MAX_RECONNECT_ATTEMPTS = 10;
     private const RECONNECT_DELAY_MS = 5000; // 5 seconds
     private const CONNECTION_HEALTH_CHECK_INTERVAL_MS = 10000; // 10 seconds
@@ -47,7 +90,7 @@ class AMQPConsumerProcess extends StandardProcess
         $this->consumerClass = $args['consumer_class'];
         $this->consumerAttribute = $args['consumer_attribute'];
         $this->connectionName = $args['connection_name'];
-        $this->taskManager = $args['task_manager'];
+        $this->connectionFactory = $args['connection_factory'];
         $this->lastActivityTime = time();
     }
 
@@ -63,7 +106,7 @@ class AMQPConsumerProcess extends StandardProcess
         });
 
         // Wait a bit before starting the consumer to ensure the server is ready
-        Timer::after(5000, function () {
+        Timer::after(500, function () {
             $this->startConsumer();
         });
     }
@@ -132,7 +175,7 @@ class AMQPConsumerProcess extends StandardProcess
             $consumer = new $this->consumerClass();
 
             // Create direct connection with enhanced heartbeat/timeout settings
-            $this->connection = AMQP::createConnection($this->connectionName);
+            $this->connection = $this->connectionFactory->createConnection($this->connectionName);
 
             logger()->debug("[AMQP] Connection established, creating channel");
             $this->channel = $this->connection->channel();
@@ -243,52 +286,6 @@ class AMQPConsumerProcess extends StandardProcess
     }
 
     /**
-     * Alert about persistent connection failures
-     * This can be extended to send alerts to monitoring systems, email, etc.
-     */
-    private function alertConnectionFailure(): void
-    {
-        $errorMessage = sprintf(
-            "[AMQP] CRITICAL: Consumer for queue %s (class %s) has failed to connect after %d attempts",
-            $this->consumerAttribute->queue,
-            $this->consumerClass,
-            self::MAX_RECONNECT_ATTEMPTS
-        );
-
-        // Log the critical error
-        logger()->debug($errorMessage);
-
-        // implement additional alerting mechanisms:
-        $alertsFile = '/tmp/amqp_connection_alerts.log';
-        file_put_contents(
-            $alertsFile,
-            date('[Y-m-d H:i:s] ') . $errorMessage . PHP_EOL,
-            FILE_APPEND
-        );
-
-        // send an alert there
-        /*
-        try {
-            $monitoringUrl = '/api/alerts';
-            $client = new \GuzzleHttp\Client();
-            $client->post($monitoringUrl, [
-                'json' => [
-                    'severity' => 'critical',
-                    'service' => 'amqp',
-                    'message' => $errorMessage,
-                    'queue' => $this->consumerAttribute->queue,
-                    'consumer' => $this->consumerClass,
-                    'attempts' => self::MAX_RECONNECT_ATTEMPTS,
-                    'timestamp' => time()
-                ]
-            ]);
-        } catch (Throwable $e) {
-            logger()->debug("[AMQP] Failed to send alert to monitoring service: " . $e->getMessage());
-        }
-        */
-    }
-
-    /**
      * Handle a disconnection event
      */
     protected function handleDisconnect(): void
@@ -336,6 +333,31 @@ class AMQPConsumerProcess extends StandardProcess
     }
 
     /**
+     * Alert about persistent connection failures
+     * This can be extended to send alerts to monitoring systems, email, etc.
+     */
+    private function alertConnectionFailure(): void
+    {
+        $errorMessage = sprintf(
+            "[AMQP] CRITICAL: Consumer for queue %s (class %s) has failed to connect after %d attempts",
+            $this->consumerAttribute->queue,
+            $this->consumerClass,
+            self::MAX_RECONNECT_ATTEMPTS
+        );
+
+        // Log the critical error
+        logger()->debug($errorMessage);
+
+        // implement additional alerting mechanisms:
+        $alertsFile = '/tmp/amqp_connection_alerts.log';
+        file_put_contents(
+            $alertsFile,
+            date('[Y-m-d H:i:s] ') . $errorMessage . PHP_EOL,
+            FILE_APPEND
+        );
+    }
+
+    /**
      * Process an AMQP message
      */
     protected function processAmqpMessage(object $consumer, AMQPMessage $message): void
@@ -344,7 +366,7 @@ class AMQPConsumerProcess extends StandardProcess
             $deliveryTag = $message->getDeliveryTag();
             logger()->debug("[AMQP] Processing message with delivery tag: {$deliveryTag}");
 
-            // Process the message directly for now instead of using a Task
+            // Process the message directly
             $data = json_decode($message->body, true) ?: [];
             logger()->debug("[AMQP] Message content: " . json_encode($data));
 
@@ -448,7 +470,16 @@ class AMQPConsumerProcess extends StandardProcess
         // Perform a lightweight operation on the channel to verify it's responsive
         try {
             // This is a very lightweight operation that doesn't affect the channel
-            $this->channel->basic_qos($this->channel->getQos()[0], $this->channel->getQos()[1], false);
+            // Simply checking channel status again (is_open is a safe method to call)
+            if (!$this->channel->is_open()) {
+                return false;
+            }
+
+            // Another option is to just call a safe method like basic_qos with the current prefetch value
+            // This works because the call is idempotent (setting to same value has no effect)
+            $prefetchCount = $this->consumerAttribute->prefetchCount ?? 10;
+            $this->channel->basic_qos(0, $prefetchCount, false);
+
             return true;
         } catch (Throwable $e) {
             logger()->debug("[AMQP] Channel health check failed: " . $e->getMessage());

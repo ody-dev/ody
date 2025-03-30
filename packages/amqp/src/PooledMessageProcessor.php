@@ -3,6 +3,7 @@
 namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Producer;
+use Ody\Task\TaskManager;
 use PhpAmqpLib\Message\AMQPMessage;
 use ReflectionClass;
 
@@ -12,33 +13,25 @@ use ReflectionClass;
 class PooledMessageProcessor extends MessageProcessor
 {
     /**
+     * Constructor to inject dependencies
+     */
+    public function __construct(
+        TaskManager             $taskManager,
+        private AMQPChannelPool $channelPool
+    )
+    {
+        parent::__construct($taskManager);
+    }
+
+    /**
      * Produce a message with connection pooling
      */
     public function produce(object $producerMessage, string $connectionName = 'default'): bool
     {
-//        // Check if already in a coroutine
-//        if (!Coroutine::getCid()) {
-//            // If not in a coroutine, create one
-//            $result = [false];
-//            Coroutine\run(function () use ($producerMessage, $connectionName, &$result) {
-//                $result[0] = $this->doProduceInCoroutine($producerMessage, $connectionName);
-//            });
-//
-//            return $result[0];
-//        }
-
-        // Already in a coroutine
-        return $this->doProduceInCoroutine($producerMessage, $connectionName);
-    }
-
-    private function doProduceInCoroutine(object $producerMessage, string $connectionName): bool
-    {
-        $channel = null;
+        // Get a pooled channel for this connection
+        $channel = $this->channelPool->getChannel($connectionName);
 
         try {
-            // Get pooled channel
-            $channel = AMQPChannelPool::getChannel($connectionName);
-
             // Get producer attribute
             $producerAttribute = null;
             $reflection = new ReflectionClass($producerMessage);

@@ -2,6 +2,7 @@
 
 namespace Ody\AMQP;
 
+use Ody\Support\Config;
 use PhpAmqpLib\Channel\AMQPChannel;
 
 /**
@@ -14,12 +15,25 @@ class AMQPChannelPool
     /**
      * @var array<string, array<int, AMQPChannel>> Channel pool
      */
-    private static array $channels = [];
+    private array $channels = [];
 
     /**
      * @var int Maximum channels per connection
      */
-    private static int $maxChannelsPerConnection = 10;
+    private int $maxChannelsPerConnection = 10;
+
+    /**
+     * Constructor for the channel pool
+     */
+    public function __construct(
+        private AMQPConnectionPool $connectionPool,
+        Config                     $config
+    )
+    {
+        // Load configuration
+        $poolConfig = $config->get('amqp.pool', []);
+        $this->maxChannelsPerConnection = $poolConfig['max_channels_per_connection'] ?? 10;
+    }
 
     /**
      * Get a channel from the pool or create a new one
@@ -27,45 +41,45 @@ class AMQPChannelPool
      * @param string $connectionName Connection configuration name
      * @return AMQPChannel
      */
-    public static function getChannel(string $connectionName = 'default'): AMQPChannel
+    public function getChannel(string $connectionName = 'default'): AMQPChannel
     {
         // Get connection from the connection pool
-        $connection = AMQPConnectionPool::getConnection($connectionName);
+        $connection = $this->connectionPool->getConnection($connectionName);
 
         // Initialize channel array for this connection if needed
-        if (!isset(self::$channels[$connectionName])) {
-            self::$channels[$connectionName] = [];
+        if (!isset($this->channels[$connectionName])) {
+            $this->channels[$connectionName] = [];
         }
 
         // Find an open channel or create a new one if under limit
-        foreach (self::$channels[$connectionName] as $channel) {
+        foreach ($this->channels[$connectionName] as $channel) {
             if ($channel->is_open()) {
                 return $channel;
             }
         }
 
         // Remove closed channels
-        self::$channels[$connectionName] = array_filter(
-            self::$channels[$connectionName],
+        $this->channels[$connectionName] = array_filter(
+            $this->channels[$connectionName],
             function ($channel) {
                 return $channel->is_open();
             }
         );
 
         // If we have room for more channels, create a new one
-        if (count(self::$channels[$connectionName]) < self::$maxChannelsPerConnection) {
+        if (count($this->channels[$connectionName]) < $this->maxChannelsPerConnection) {
             $channel = $connection->channel();
-            self::$channels[$connectionName][] = $channel;
+            $this->channels[$connectionName][] = $channel;
 
             // Register channel with the connection pool for proper cleanup
-            AMQPConnectionPool::registerChannel($connectionName, $channel);
+            $this->connectionPool->registerChannel($connectionName, $channel);
 
             return $channel;
         }
 
         // If we're at the limit, reuse a random open channel
         $openChannels = array_values(array_filter(
-            self::$channels[$connectionName],
+            $this->channels[$connectionName],
             function ($channel) {
                 return $channel->is_open();
             }
@@ -74,10 +88,10 @@ class AMQPChannelPool
         if (empty($openChannels)) {
             // All channels are closed, create a new one
             $channel = $connection->channel();
-            self::$channels[$connectionName][] = $channel;
+            $this->channels[$connectionName][] = $channel;
 
             // Register channel with the connection pool
-            AMQPConnectionPool::registerChannel($connectionName, $channel);
+            $this->connectionPool->registerChannel($connectionName, $channel);
 
             return $channel;
         }
@@ -91,10 +105,10 @@ class AMQPChannelPool
      *
      * @return void
      */
-    public static function closeAll(): void
+    public function closeAll(): void
     {
-        foreach (array_keys(self::$channels) as $connectionName) {
-            self::closeChannels($connectionName);
+        foreach (array_keys($this->channels) as $connectionName) {
+            $this->closeChannels($connectionName);
         }
     }
 
@@ -104,13 +118,13 @@ class AMQPChannelPool
      * @param string $connectionName Connection configuration name
      * @return void
      */
-    public static function closeChannels(string $connectionName): void
+    public function closeChannels(string $connectionName): void
     {
-        if (!isset(self::$channels[$connectionName])) {
+        if (!isset($this->channels[$connectionName])) {
             return;
         }
 
-        foreach (self::$channels[$connectionName] as $channel) {
+        foreach ($this->channels[$connectionName] as $channel) {
             try {
                 if ($channel->is_open()) {
                     $channel->close();
@@ -121,7 +135,7 @@ class AMQPChannelPool
             }
         }
 
-        self::$channels[$connectionName] = [];
+        $this->channels[$connectionName] = [];
     }
 
     /**
@@ -130,9 +144,9 @@ class AMQPChannelPool
      * @param int $max Maximum number of channels per connection
      * @return void
      */
-    public static function setMaxChannelsPerConnection(int $max): void
+    public function setMaxChannelsPerConnection(int $max): void
     {
-        self::$maxChannelsPerConnection = max(1, $max);
+        $this->maxChannelsPerConnection = max(1, $max);
     }
 
     /**
@@ -140,14 +154,14 @@ class AMQPChannelPool
      *
      * @return array
      */
-    public static function getStats(): array
+    public function getStats(): array
     {
         $stats = [
             'total_channels' => 0,
             'connections' => [],
         ];
 
-        foreach (self::$channels as $connectionName => $channels) {
+        foreach ($this->channels as $connectionName => $channels) {
             $openChannels = count(array_filter($channels, function ($channel) {
                 return $channel->is_open();
             }));

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Ody\AMQP;
 
-use Ody\AMQP\Message\Result;
 use Ody\Task\TaskInterface;
-use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
 
 /**
@@ -23,14 +21,13 @@ class AMQPMessageTask implements TaskInterface
             // Extract parameters
             $consumerClass = $params['consumer_class'];
             $messageBody = $params['message_body'];
-            $deliveryTag = $params['delivery_tag'];
-            $channel = $params['channel'];
+            $deliveryTag = $params['delivery_tag']; // Only store the tag, not the channel
 
-            // Create a new AMQPMessage instance since we can't serialize it
+            // Create a new AMQPMessage instance
             $message = new AMQPMessage($messageBody);
             $message->setDeliveryInfo($deliveryTag, false, '', '');
 
-            // Create an instance of the consumer
+            // Create consumer instance
             $consumer = new $consumerClass();
 
             // Process message data
@@ -39,54 +36,18 @@ class AMQPMessageTask implements TaskInterface
             // Call the consumer's method
             $result = $consumer->consumeMessage($data, $message);
 
-            // Handle the result
-            $this->handleResult($result, $deliveryTag, $channel);
-
+            // Only return the result, don't interact with the channel
             return [
                 'success' => true,
                 'result' => $result->value,
+                'delivery_tag' => $deliveryTag
             ];
         } catch (\Throwable $e) {
-            // Log the error
-            logger()->error("Error processing AMQP message: " . $e->getMessage());
-
-            // Always try to NACK the message so it doesn't get lost
-            try {
-                if (isset($channel) && isset($deliveryTag)) {
-                    $channel->basic_nack($deliveryTag, false, true);
-                }
-            } catch (\Throwable $e) {
-                // Ignore exceptions during error recovery
-            }
-
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
+                'delivery_tag' => $params['delivery_tag'] ?? null
             ];
-        }
-    }
-
-    /**
-     * Handle the result of message processing
-     */
-    private function handleResult(Result $result, int $deliveryTag, AMQPChannel $channel): void
-    {
-        switch ($result) {
-            case Result::ACK:
-                $channel->basic_ack($deliveryTag);
-                break;
-
-            case Result::NACK:
-                $channel->basic_nack($deliveryTag);
-                break;
-
-            case Result::REQUEUE:
-                $channel->basic_reject($deliveryTag, true);
-                break;
-
-            case Result::DROP:
-                $channel->basic_reject($deliveryTag, false);
-                break;
         }
     }
 }

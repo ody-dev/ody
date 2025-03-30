@@ -6,6 +6,7 @@ use Ody\Container\Container;
 use Ody\CQRS\Handler\Registry\EventHandlerRegistry;
 use Ody\CQRS\Interfaces\EventBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
+use Psr\Log\LoggerInterface;
 
 class EventBus implements EventBusInterface
 {
@@ -18,11 +19,13 @@ class EventBus implements EventBusInterface
      * @param EventHandlerRegistry $handlerRegistry
      * @param Container $container
      * @param MiddlewareProcessor|null $middlewareProcessor
+     * @param LoggerInterface $logger
      */
     public function __construct(
         private EventHandlerRegistry $handlerRegistry,
         private Container            $container,
-        private ?MiddlewareProcessor $middlewareProcessor = null
+        private ?MiddlewareProcessor $middlewareProcessor = null,
+        private LoggerInterface      $logger
     )
     {
     }
@@ -60,12 +63,12 @@ class EventBus implements EventBusInterface
                     'executeHandlers',
                     [$event, $handlerInfos],
                     function ($args) {
-                        return $this->executeHandlers(...$args);
+                        $this->executeHandlers(...$args);
                     }
                 );
             } catch (\Throwable $e) {
                 // Log the error but continue, as events should not disrupt the flow
-                logger()->error(sprintf('Error publishing event %s: %s', $eventClass, $e->getMessage()));
+                $this->logger->error(sprintf('Error publishing event %s: %s', $eventClass, $e->getMessage()));
             }
         } else {
             // Otherwise, just execute the handlers directly
@@ -105,7 +108,7 @@ class EventBus implements EventBusInterface
                 }
             } catch (\Throwable $e) {
                 // Log the error but continue with other handlers
-                logger()->error(sprintf(
+                $this->logger->error(sprintf(
                     'Error handling event %s in %s::%s: %s',
                     get_class($event),
                     $handlerInfo['class'],

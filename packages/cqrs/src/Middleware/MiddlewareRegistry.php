@@ -3,6 +3,7 @@
 namespace Ody\CQRS\Middleware;
 
 use Ody\Container\Container;
+use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -37,10 +38,12 @@ class MiddlewareRegistry
     /**
      * @param Container $container
      * @param PointcutResolver $pointcutResolver
+     * @param LoggerInterface $logger
      */
     public function __construct(
-        private Container $container,
-        PointcutResolver  $pointcutResolver
+        private Container       $container,
+        PointcutResolver        $pointcutResolver,
+        private LoggerInterface $logger
     )
     {
         $this->pointcutResolver = $pointcutResolver;
@@ -173,7 +176,7 @@ class MiddlewareRegistry
             }
         } catch (\Throwable $e) {
             // Log error but continue scanning
-            logger()->error("Error scanning class {$className}: " . $e->getMessage());
+            $this->logger->error("Error scanning class {$className}: " . $e->getMessage());
         }
     }
 

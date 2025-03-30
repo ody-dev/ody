@@ -91,7 +91,7 @@ class AMQPConnectionPool
                 $this->connections[$connectionName]['lastUsed'] = time();
                 $connection = $this->connections[$connectionName]['connection'];
 
-                $mutex->unlock();
+                $this->mutex->unlock();
                 return $connection;
             }
 

@@ -84,25 +84,25 @@ class AMQPConnectionPool
             $this->startGarbageCollection();
 
             // Check if we have a valid connection in the pool
-            if (isset($this->connections[$connectionName]) &&
-                $this->connections[$connectionName]['connection']->isConnected()) {
+            if (isset($this->connections[$connectionName])) {
+                $connectionData = $this->connections[$connectionName];
 
-                // Update last used time
-                $this->connections[$connectionName]['lastUsed'] = time();
-                $connection = $this->connections[$connectionName]['connection'];
-
-                $this->mutex->unlock();
-                return $connection;
+                try {
+                    if ($connectionData['connection']->isConnected()) {
+                        $connectionData['connection']->checkHeartbeat();
+                        $connectionData['lastUsed'] = time();
+                        return $connectionData['connection'];
+                    }
+                } catch (Throwable $e) {
+                    // Connection is not healthy, remove it
+                    $this->closeConnection($connectionName);
+                }
             }
 
-            // Create a new connection
-            $connection = $this->createNewConnection($connectionName);
-
+            // We need a new connection
+            return $this->createNewConnection($connectionName);
+        } finally {
             $this->mutex->unlock();
-            return $connection;
-        } catch (Throwable $e) {
-            $this->mutex->unlock();
-            throw $e;
         }
     }
 

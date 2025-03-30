@@ -96,6 +96,8 @@ class AMQPConnectionPool
                 } catch (Throwable $e) {
                     // Connection is not healthy, remove it
                     $this->closeConnection($connectionName);
+
+                    logger()->error("[AMQP] Connection error: " . $e->getMessage());
                 }
             }
 

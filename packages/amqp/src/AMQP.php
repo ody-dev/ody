@@ -138,7 +138,7 @@ class AMQP
             read_write_timeout: ($connectionConfig['params']['read_write_timeout'] ?? 3.0),
             context: null,
             keepalive: true, // Set a reasonable heartbeat value
-            heartbeat: 60, // Enable TCP keepalive
+            heartbeat: 20, // Enable TCP keepalive
         );
     }
 

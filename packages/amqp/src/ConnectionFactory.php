@@ -47,7 +47,7 @@ readonly class ConnectionFactory
             read_write_timeout: ($connectionConfig['params']['read_write_timeout'] ?? 3.0),
             context: null,
             keepalive: ($connectionConfig['params']['keepalive'] ?? true),
-            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 60),
+            heartbeat: ($connectionConfig['params']['heartbeat'] ?? 20),
         );
     }
 }

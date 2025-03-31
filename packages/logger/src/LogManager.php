@@ -8,9 +8,7 @@
  */
 
 namespace Ody\Logger;
-// Assuming this is the correct namespace
 
-// Monolog specific uses
 use InvalidArgumentException;
 use Monolog\Formatter\FormatterInterface as MonologFormatterInterface;
 use Monolog\Handler\HandlerInterface as MonologHandlerInterface;
@@ -23,16 +21,6 @@ use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
 use Throwable;
 
-// Example handler
-
-// Example formatter
-
-// PSR interfaces
-
-/**
- * LogManager focused exclusively on Monolog configuration.
- * Factory and manager for Monolog loggers.
- */
 class LogManager
 {
     /**
@@ -166,24 +154,21 @@ class LogManager
         // Create the base Monolog logger instance
         $logger = new MonologLogger($channel);
 
-        // --- 1. Create Handler ---
         $handlerClass = $config['handler'] ?? StreamHandler::class; // Sensible default
         if (!class_exists($handlerClass) || !is_subclass_of($handlerClass, MonologHandlerInterface::class)) {
             throw new InvalidArgumentException("Invalid Monolog handler class specified for channel '{$channel}': {$handlerClass}");
         }
 
-        // Prepare arguments for the handler's constructor from the 'with' config key
         $handlerArgsConfig = $config['with'] ?? [];
         $preparedArgs = $this->prepareMonologConstructorArgs($handlerArgsConfig, $channel);
 
         /** @var MonologHandlerInterface $handler */
         try {
-            // Instantiate the handler, attempting common handlers explicitly first for robustness
             if ($handlerClass === StreamHandler::class) {
                 if (!isset($preparedArgs['stream'])) {
                     throw new InvalidArgumentException("Missing 'stream' configuration in 'with' key for StreamHandler channel '{$channel}'.");
                 }
-                // Extract arguments for StreamHandler constructor
+
                 $stream = $preparedArgs['stream'];
                 $level = $preparedArgs['level'] ?? MonologLevel::Debug; // Initial level, overridden below
                 $bubble = $preparedArgs['bubble'] ?? true;
@@ -200,20 +185,15 @@ class LogManager
             throw $e; // Re-throw critical error
         }
 
-        // --- Explicitly Set Handler Level ---
-        // Use the top-level 'level' key from the channel config for the handler's minimum level
         $handlerLevelConfig = $config['level'] ?? LogLevel::DEBUG; // Default to DEBUG
         try {
             $monologLevel = $this->psrToMonologLevel($handlerLevelConfig);
-            // Set the level on the handler instance
             if (method_exists($handler, 'setLevel')) {
                 $handler->setLevel($monologLevel);
             } elseif (!isset($preparedArgs['level'])) { // Check if level was already set via constructor
-                // Warn if level couldn't be set and wasn't in constructor args
                 error_log("[LogManager] Handler '{$handlerClass}' for channel '{$channel}' might not support setLevel() and level was not passed in 'with'. Using handler's default level.");
             }
         } catch (InvalidArgumentException $e) {
-            // Handle invalid level string from config
             error_log("[LogManager] Invalid log level '{$handlerLevelConfig}' specified for channel '{$channel}'. Defaulting handler to DEBUG. Error: {$e->getMessage()}");
             if (method_exists($handler, 'setLevel')) {
                 $handler->setLevel(MonologLevel::Debug); // Safe fallback
@@ -229,16 +209,12 @@ class LogManager
             // Prepare arguments for the formatter's constructor from 'formatter_with'
             $formatterArgs = $this->prepareMonologConstructorArgs($config['formatter_with'] ?? [], $channel);
             /** @var MonologFormatterInterface $formatter */
-            // Instantiate the formatter
             $formatter = new $formatterClass(...array_values($formatterArgs));
-            // Apply the formatter to the handler
             $handler->setFormatter($formatter);
         }
 
-        // --- 3. Push Handler onto Logger ---
         $logger->pushHandler($handler);
 
-        // --- 4. Add Processors (Optional) ---
         if (!empty($config['processors']) && is_array($config['processors'])) {
             foreach ($config['processors'] as $processorEntry) {
                 $processor = $this->resolveProcessor($processorEntry, $channel);

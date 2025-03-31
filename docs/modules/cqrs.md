@@ -1,7 +1,6 @@
 ---
 title: CQRS
 ---
-
 ODY CQRS provides a clean separation between commands (which modify state) and queries (which retrieve data), enabling
 scalable and maintainable application architecture.
 
@@ -12,14 +11,134 @@ Key features:
 - **Event Bus**: Broadcast and handle domain events
 - **Middleware Support**: Extend functionality with custom middleware
 - **Attribute-based Registration**: Simple handler declaration with PHP 8 attributes
-- **API Integration**: Expose CQRS commands and queries as RESTful endpoints
-- **OpenAPI Documentation**: Automatic API documentation generation
-- **Swoole Integration**: Leverage coroutines for non-blocking operations
 
 ## Installation
 
 ```bash
 composer require ody/cqrs
+```
+
+## Introduction
+
+Command Query Responsibility Segregation is an architectural pattern that separates read operations (Queries) from write operations (Commands). This separation allows for specialized optimization of each path, increased scalability, and better maintainability of your codebase.
+
+```mermaid
+graph LR
+    subgraph "CQRS Architecture"
+        W[Client Write]-->|Commands|CB[Command Bus]
+        CB-->|Process|CH[Command Handlers]
+        CH-->|Modify|DB[(Database)]
+        CH-->|Emit|EB[Event Bus]
+        EB-->|Notify|EH[Event Handlers]
+        
+        R[Client Read]-->|Queries|QB[Query Bus]
+        QB-->|Fetch|QH[Query Handlers]
+        QH-->|Read|DB
+    end
+    
+    style W fill:#f9f,stroke:#333,stroke-width:2px
+    style R fill:#bbf,stroke:#333,stroke-width:2px
+    style CB fill:#afa,stroke:#333,stroke-width:2px
+    style QB fill:#aff,stroke:#333,stroke-width:2px
+    style EB fill:#ffa,stroke:#333,stroke-width:2px
+```
+
+### Messages
+
+At the heart of the CQRS system are three types of messages:
+
+* **Commands**: Represent intentions to change state (e.g., `CreateUserCommand`, `UpdateProductCommand`)
+* **Queries**: Represent requests for information without side effects (e.g., `GetUserByIdQuery`, `ListProductsQuery`)
+* **Events**: Represent notifications that something has happened (e.g., `UserCreatedEvent`, `OrderShippedEvent`)
+
+Messages in this implementation are simple PHP objects, intentionally free from framework-specific dependencies. This design choice keeps your domain logic clean and portable.
+
+### Handlers
+
+For each message type, there are corresponding handlers:
+
+* **Command Handlers**: Process commands and modify state
+* **Query Handlers**: Process queries and return data
+* **Event Handlers**: React to events (and multiple handlers can respond to a single event)
+
+Handlers are services available in the dependency container. Using PHP 8 attributes, you can easily mark methods as handlers:
+
+```php
+#[CommandHandler]
+public function createUser(CreateUserCommand $command, EventBusInterface $eventBus)
+{
+    // Process command logic...
+    $eventBus->publish(new UserCreatedEvent($userId));
+}
+
+#[QueryHandler]
+public function getUserById(GetUserByIdQuery $query)
+{
+    // Retrieve and return data...
+}
+
+#[EventHandler]
+public function notifyOnUserCreated(UserCreatedEvent $event)
+{
+    // React to event...
+}
+```
+
+### Message Buses
+
+Message buses serve as the transport mechanism that connects messages to their handlers:
+
+* **Command Bus**: Routes commands to their respective command handlers
+* **Query Bus**: Routes queries to their respective query handlers and returns results
+* **Event Bus**: Distributes events to all registered event handlers
+
+### How Does It All Fit Together?
+
+When a command is dispatched through the Command Bus:
+
+1. The bus identifies the appropriate handler based on the command's class
+2. Middleware components may intercept the command for cross-cutting concerns
+3. The handler processes the command, potentially emitting events
+4. Events are published to the Event Bus, triggering any relevant event handlers
+
+Command flow:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant CommandBus
+    participant CommandHandler
+    participant Database
+    participant EventBus
+    participant EventHandler
+    
+    Client->>CommandBus: dispatch(CreateUserCommand)
+    CommandBus->>CommandBus: Apply middleware
+    CommandBus->>CommandHandler: execute
+    CommandHandler->>Database: save user
+    CommandHandler->>EventBus: publish(UserCreatedEvent)
+    EventBus->>EventHandler: handle(UserCreatedEvent)
+    EventHandler->>Database: log audit entry
+    CommandHandler-->>CommandBus: void
+    CommandBus-->>Client: success
+```
+
+Query flow:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant QueryBus
+    participant QueryHandler
+    participant Database
+    
+    Client->>QueryBus: dispatch(GetUserByIdQuery)
+    QueryBus->>QueryBus: Apply middleware
+    QueryBus->>QueryHandler: execute
+    QueryHandler->>Database: find user
+    Database-->>QueryHandler: user data
+    QueryHandler-->>QueryBus: User object
+    QueryBus-->>Client: User object
 ```
 
 ## Configuration
@@ -58,9 +177,13 @@ return [
 ];
 ```
 
-## Quick Start
+## Usage
 
 ### Define Commands, Queries, and Events
+
+All Messages (Command/Queries/Events) just like Message Handlers (Command/Query/Event Handlers) are simple Plain old 
+PHP Objects which means they do not extend or implement any framework specific classes.
+This way we keep our business code clean and easy to understand.
 
 ```php
 <?php
@@ -105,6 +228,8 @@ class UserWasCreated extends Event
 
 ### Create Handlers
 
+Command/Queries/Events handlers are Services available in Dependency Container, which are defined to handle Commands.
+
 ```php
 <?php
 namespace App\Services;
@@ -146,7 +271,7 @@ class UserService
 }
 ```
 
-### Use in Controllers
+### Dispatch
 
 ```php
 <?php
@@ -199,8 +324,7 @@ class UserController
 
 ## Middleware System
 
-The CQRS middleware system allows you to intercept and modify the behavior of commands, queries, and events at various
-points in their lifecycle.
+The CQRS middleware system allows you to intercept and modify the behavior of commands, queries, and events at various points in their lifecycle.
 
 ### Types of Middleware
 
@@ -250,6 +374,17 @@ class LoggingMiddleware
     }
 }
 ```
+
+### Pointcut Expressions
+
+Pointcut expressions determine which methods the middleware applies to. The syntax supports:
+
+1. **Exact Class Match**: `App\Services\UserService`
+2. **Namespace Wildcard**: `App\Domain\*`
+3. **Method Match**: `App\Services\UserService::createUser`
+4. **Any Method Wildcard**: `App\Services\UserService::*`
+5. **Global Wildcard**: `*` (matches everything)
+6. **Logical Operations**: `App\Domain\* && !App\Domain\Internal\*`
 
 ### Example: Transactional Middleware
 
@@ -360,44 +495,3 @@ $responseFormattingMiddleware = new ResponseFormattingMiddleware($response);
 $app->add($responseFormattingMiddleware);
 $app->add($requestMappingMiddleware);
 ```
-
-### Generate API Documentation
-
-```php
-<?php
-use Ody\CQRS\Api\Documentation\OpenApiGenerator;
-
-$generator = new OpenApiGenerator(
-    $commandBus->getHandlerRegistry(),
-    $queryBus->getHandlerRegistry()
-);
-
-$openApiJson = $generator->generateJson(
-    title: 'My API Documentation',
-    version: '1.0.0',
-    description: 'API documentation for my application'
-);
-```
-
-## Pointcut Expressions
-
-Pointcut expressions determine which methods the middleware applies to. The syntax supports:
-
-1. **Exact Class Match**: `App\Services\UserService`
-2. **Namespace Wildcard**: `App\Domain\*`
-3. **Method Match**: `App\Services\UserService::createUser`
-4. **Any Method Wildcard**: `App\Services\UserService::*`
-5. **Global Wildcard**: `*` (matches everything)
-6. **Logical Operations**: `App\Domain\* && !App\Domain\Internal\*`
-
-## Best Practices
-
-1. **Keep Commands and Queries Simple**: They should be DTOs (Data Transfer Objects) without complex logic
-2. **Single Responsibility**: Each handler should handle one specific command or query
-3. **Domain Events**: Use events to notify about state changes, not to perform side effects
-4. **Idempotency**: Design command handlers to be idempotent (can be executed multiple times with the same result)
-5. **Transactions**: Use database transactions in command handlers to ensure atomicity
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

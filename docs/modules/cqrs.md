@@ -22,27 +22,6 @@ composer require ody/cqrs
 
 Command Query Responsibility Segregation is an architectural pattern that separates read operations (Queries) from write operations (Commands). This separation allows for specialized optimization of each path, increased scalability, and better maintainability of your codebase.
 
-```mermaid
-graph LR
-    subgraph "CQRS Architecture"
-        W[Client Write]-->|Commands|CB[Command Bus]
-        CB-->|Process|CH[Command Handlers]
-        CH-->|Modify|DB[(Database)]
-        CH-->|Emit|EB[Event Bus]
-        EB-->|Notify|EH[Event Handlers]
-        
-        R[Client Read]-->|Queries|QB[Query Bus]
-        QB-->|Fetch|QH[Query Handlers]
-        QH-->|Read|DB
-    end
-    
-    style W fill:#f9f,stroke:#333,stroke-width:2px
-    style R fill:#bbf,stroke:#333,stroke-width:2px
-    style CB fill:#afa,stroke:#333,stroke-width:2px
-    style QB fill:#aff,stroke:#333,stroke-width:2px
-    style EB fill:#ffa,stroke:#333,stroke-width:2px
-```
-
 ### Messages
 
 At the heart of the CQRS system are three types of messages:

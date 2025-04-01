@@ -3,6 +3,7 @@
 namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Consumer;
+use Ody\Container\Container;
 use Ody\Process\ProcessManager;
 use Ody\Task\TaskManager;
 use Psr\Log\LoggerInterface;
@@ -21,6 +22,7 @@ class AMQPManager
         private readonly ProcessManager    $processManager,
         private readonly ConnectionFactory $connectionFactory,
         private LoggerInterface            $logger,
+        private Container $container
     ) {}
 
     /**
@@ -66,6 +68,7 @@ class AMQPManager
                 'prefetch_count' => $consumerAttribute->prefetchCount,
                 'task_manager' => $this->taskManager,
                 'connection_factory' => $this->connectionFactory,
+                'container' => $this->container,
             ],
             daemon: true
         );

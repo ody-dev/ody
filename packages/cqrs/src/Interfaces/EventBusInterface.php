@@ -2,7 +2,7 @@
 
 namespace Ody\CQRS\Interfaces;
 
-interface EventBus
+interface EventBusInterface
 {
     public function publish(object $event): void;
 }

@@ -3,8 +3,10 @@
 namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Consumer;
+use Ody\Container\Container;
 use Ody\Process\ProcessManager;
 use Ody\Task\TaskManager;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class AMQPManager
@@ -18,7 +20,9 @@ class AMQPManager
         protected MessageProcessor         $messageProcessor,
         protected TaskManager              $taskManager,
         private readonly ProcessManager    $processManager,
-        private readonly ConnectionFactory $connectionFactory
+        private readonly ConnectionFactory $connectionFactory,
+        private LoggerInterface            $logger,
+        private Container $container
     ) {}
 
     /**
@@ -39,16 +43,16 @@ class AMQPManager
             $isRunning = $this->isPidRunning($pid);
 
             if ($isRunning) {
-                logger()->debug("[AMQP] Consumer process for queue {$consumerAttribute->queue} already exists");
+                $this->logger->debug("[AMQP] Consumer process for queue {$consumerAttribute->queue} already exists");
                 return;
             }
 
             // Process is dead, remove it from tracking
-            logger()->debug("[AMQP] Removing dead consumer process for queue {$consumerAttribute->queue}");
+            $this->logger->debug("[AMQP] Removing dead consumer process for queue {$consumerAttribute->queue}");
             unset($this->activeConsumerProcesses[$queueKey]);
         }
 
-        logger()->debug("[AMQP] Forking consumer process for queue {$consumerAttribute->queue} with class {$consumerClass}");
+        $this->logger->debug("[AMQP] Forking consumer process for queue {$consumerAttribute->queue} with class {$consumerClass}");
 
         // Create a process for this consumer but don't instantiate the consumer yet
         $process = $this->processManager->execute(
@@ -64,6 +68,7 @@ class AMQPManager
                 'prefetch_count' => $consumerAttribute->prefetchCount,
                 'task_manager' => $this->taskManager,
                 'connection_factory' => $this->connectionFactory,
+                'container' => $this->container,
             ],
             daemon: true
         );
@@ -110,7 +115,7 @@ class AMQPManager
                 return count($output) > 0;
             }
         } catch (Throwable $e) {
-            logger()->debug("[AMQP] Error checking process status: " . $e->getMessage());
+            $this->logger->debug("[AMQP] Error checking process status: " . $e->getMessage());
             return false;
         }
     }

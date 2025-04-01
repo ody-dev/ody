@@ -16,7 +16,7 @@ return [
         'params' => [
             'connection_timeout' => 3.0,
             'read_write_timeout' => 3.0,
-            'heartbeat' => 60,
+            'heartbeat' => 20,
             'keepalive' => true,
             'insist' => false,
             'login_method' => 'AMQPLAIN',

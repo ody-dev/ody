@@ -9,6 +9,7 @@
 
 namespace Ody\Logger;
 
+use Ody\Logger\Formatters\FormatterInterface;
 use Psr\Log\LogLevel;
 
 /**

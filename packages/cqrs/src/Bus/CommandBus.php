@@ -6,11 +6,17 @@ use Ody\CQRS\Exception\CommandHandlerException;
 use Ody\CQRS\Exception\HandlerNotFoundException;
 use Ody\CQRS\Handler\Registry\CommandHandlerRegistry;
 use Ody\CQRS\Handler\Resolver\CommandHandlerResolver;
-use Ody\CQRS\Interfaces\CommandBus as CommandBusInterface;
+use Ody\CQRS\Interfaces\CommandBusInterface;
 use Ody\CQRS\Middleware\MiddlewareProcessor;
+use Throwable;
 
 class CommandBus implements CommandBusInterface
 {
+    /**
+     * @var array Custom command handlers registered at runtime
+     */
+    private array $customHandlers = [];
+
     /**
      * @var array List of middleware to apply
      */
@@ -27,6 +33,29 @@ class CommandBus implements CommandBusInterface
         private ?MiddlewareProcessor   $middlewareProcessor = null
     )
     {
+    }
+
+    /**
+     * Register a custom handler for a command
+     *
+     * @param string $commandClass Command class name
+     * @param callable $handler Handler function
+     * @return void
+     */
+    public function registerHandler(string $commandClass, callable $handler): void
+    {
+        $this->customHandlers[$commandClass] = $handler;
+    }
+
+    /**
+     * Unregister a custom handler for a command
+     *
+     * @param string $commandClass Command class name
+     * @return void
+     */
+    public function unregisterHandler(string $commandClass): void
+    {
+        unset($this->customHandlers[$commandClass]);
     }
 
     /**
@@ -47,11 +76,18 @@ class CommandBus implements CommandBusInterface
      * @param object $command
      * @return void
      * @throws HandlerNotFoundException
-     * @throws CommandHandlerException
+     * @throws CommandHandlerException|Throwable
      */
     public function dispatch(object $command): void
     {
         $commandClass = get_class($command);
+
+        // Check for custom handler first
+        if (isset($this->customHandlers[$commandClass])) {
+            $handler = $this->customHandlers[$commandClass];
+            $handler($command);
+            return;
+        }
 
         // Check if we have a registered handler
         if (!$this->handlerRegistry->hasHandlerFor($commandClass)) {
@@ -71,12 +107,10 @@ class CommandBus implements CommandBusInterface
                     'executeHandler',
                     [$command, $handlerInfo],
                     function ($args) {
-                        return $this->executeHandler(...$args);
+                        $this->executeHandler(...$args);
                     }
                 );
-            } catch (CommandHandlerException $e) {
-                throw $e;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 throw new CommandHandlerException(
                     sprintf('Error handling command %s: %s', $commandClass, $e->getMessage()),
                     0,
@@ -95,14 +129,14 @@ class CommandBus implements CommandBusInterface
      * @param object $command The command to handle
      * @param array $handlerInfo The handler information
      * @return void
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function executeHandler(object $command, array $handlerInfo): void
     {
         try {
             $handler = $this->handlerResolver->resolveHandler($handlerInfo);
             $handler($command);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             throw $e;
         }
     }

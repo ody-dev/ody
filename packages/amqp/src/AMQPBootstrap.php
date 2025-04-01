@@ -3,9 +3,11 @@
 namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Consumer;
+use Ody\Container\Container;
 use Ody\Process\ProcessManager;
 use Ody\Support\Config;
 use Ody\Task\TaskManager;
+use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
 use ReflectionClass;
 
@@ -24,6 +26,8 @@ class AMQPBootstrap
         private TaskManager    $taskManager,
         private ProcessManager $processManager,
         private ConnectionFactory $connectionFactory,
+        private LoggerInterface $logger,
+        private Container $container
     )
     {
         $this->messageProcessor = new MessageProcessor($this->taskManager);
@@ -31,7 +35,9 @@ class AMQPBootstrap
             $this->messageProcessor,
             $this->taskManager,
             $this->processManager,
-            $this->connectionFactory
+            $this->connectionFactory,
+            $this->logger,
+            $this->container
         );
     }
 
@@ -67,7 +73,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerConsumerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                logger()->error("Error registering consumer $class: " . $e->getMessage());
+                $this->logger->error("Error registering consumer $class: " . $e->getMessage());
             }
         }
 
@@ -78,7 +84,7 @@ class AMQPBootstrap
                 $this->messageProcessor->registerProducerClass($class);
             } catch (\Throwable $e) {
                 // Log error but continue with other producers
-                logger()->error("Error registering producer $class: " . $e->getMessage());
+                $this->logger->error("Error registering producer $class: " . $e->getMessage());
             }
         }
     }
@@ -92,7 +98,7 @@ class AMQPBootstrap
         $connectionName = 'default';
         $consumerClasses = $this->findConsumerClasses();
 
-        logger()->debug("[AMQP] Found " . count($consumerClasses) . " consumer classes");
+        $this->logger->debug("[AMQP] Found " . count($consumerClasses) . " consumer classes");
 
         foreach ($consumerClasses as $consumerClass) {
             try {
@@ -113,20 +119,20 @@ class AMQPBootstrap
                 // Skip if we already forked a process for this queue
                 $queueKey = $consumerAttribute->exchange . ':' . $consumerAttribute->queue;
                 if (isset($this->forkedConsumers[$queueKey])) {
-                    logger()->debug("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
+                    $this->logger->debug("[AMQP] Skipping duplicate consumer for queue {$consumerAttribute->queue}");
                     continue;
                 }
 
                 // Mark this queue as forked
                 $this->forkedConsumers[$queueKey] = true;
 
-                logger()->debug("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
+                $this->logger->debug("[AMQP] Forking consumer process for {$consumerClass} on queue {$consumerAttribute->queue}");
 
                 // Fork consumer process with necessary information
                 $this->amqpManager->forkConsumerProcess($consumerClass, $consumerAttribute, $connectionName);
             } catch (\Throwable $e) {
                 // Log error but continue with other consumers
-                logger()->error("Error forking consumer process for $consumerClass: " . $e->getMessage());
+                $this->logger->error("Error forking consumer process for $consumerClass: " . $e->getMessage());
             }
         }
     }

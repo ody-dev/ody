@@ -7,6 +7,7 @@ namespace Ody\AMQP;
 use Exception;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\AMQP\Message\Result;
+use Ody\Container\Container;
 use Ody\Process\StandardProcess;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -80,6 +81,8 @@ class AMQPConsumerProcess extends StandardProcess
     private const RECONNECT_DELAY_MS = 5000; // 5 seconds
     private const CONNECTION_HEALTH_CHECK_INTERVAL_MS = 10000; // 10 seconds
 
+    private Container $container;
+
     /**
      * {@inheritDoc}
      */
@@ -91,6 +94,7 @@ class AMQPConsumerProcess extends StandardProcess
         $this->consumerAttribute = $args['consumer_attribute'];
         $this->connectionName = $args['connection_name'];
         $this->connectionFactory = $args['connection_factory'];
+        $this->container = $args['container'];
         $this->lastActivityTime = time();
     }
 
@@ -172,7 +176,10 @@ class AMQPConsumerProcess extends StandardProcess
             logger()->debug("[AMQP] Setting up connection for {$this->consumerAttribute->queue}");
 
             // Create the consumer instance
-            $consumer = new $this->consumerClass();
+//            $consumer = new $this->consumerClass();
+
+            // instantiate consumer classes with DI
+            $consumer = $this->container->make($this->consumerClass);
 
             // Create direct connection with enhanced heartbeat/timeout settings
             $this->connection = $this->connectionFactory->createConnection($this->connectionName);
@@ -214,7 +221,7 @@ class AMQPConsumerProcess extends StandardProcess
             );
 
             // Set up consumer callback
-            logger()->debug("[AMQP] Setting up consumer callback");
+            logger()->debug("[AMQP] Setting up consumer callback: {$this->consumerAttribute->routingKey}");
             $this->channel->basic_consume(
                 $this->consumerAttribute->queue,
                 '', // consumer tag

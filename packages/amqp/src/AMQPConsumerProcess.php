@@ -221,7 +221,7 @@ class AMQPConsumerProcess extends StandardProcess
             );
 
             // Set up consumer callback
-            logger()->debug("[AMQP] Setting up consumer callback");
+            logger()->debug("[AMQP] Setting up consumer callback: {$this->consumerAttribute->routingKey}");
             $this->channel->basic_consume(
                 $this->consumerAttribute->queue,
                 '', // consumer tag

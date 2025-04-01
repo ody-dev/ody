@@ -22,10 +22,6 @@ class AMQPServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-
         // Register the AMQP services.
         $this->registerServices();
     }
@@ -131,10 +127,6 @@ class AMQPServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-
         // Initialize the AMQPBootstrap
         $this->container->get(AMQPBootstrap::class)->boot();
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace Ody\Framework\Events;
+namespace Ody\CQRS\Messaging\Events;
 
 /**
  * Event emitted when code has been reloaded

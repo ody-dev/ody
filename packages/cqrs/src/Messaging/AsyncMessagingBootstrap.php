@@ -146,6 +146,12 @@ class AsyncMessagingBootstrap
      */
     private function registerAsyncHandlerForCommand(string $commandClass, string $channel): void
     {
+        // Get the original handler info before replacing it
+        $originalHandlerInfo = $this->commandBus->getHandlerRegistry()->getHandlerFor($commandClass);
+
+        // Store the original handler info with the command class
+        $this->asyncHandlers[$commandClass]['handler_info'] = $originalHandlerInfo;
+
         // Register a custom handler that sends the command to the message broker
         $this->commandBus->registerHandler(
             $commandClass,
@@ -170,5 +176,10 @@ class AsyncMessagingBootstrap
 
         $this->asyncHandlers = [];
         $this->logger->debug('Cleared async command handlers');
+    }
+
+    public function getOriginalHandlerInfo(string $commandClass): ?array
+    {
+        return $this->asyncHandlers[$commandClass]['handler_info'] ?? null;
     }
 }

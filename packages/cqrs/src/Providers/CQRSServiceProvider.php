@@ -31,10 +31,6 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-
         // Register config file
         $this->publishes([
             __DIR__ . '/../../config/cqrs.php' => config_path('cqrs.php'),
@@ -54,10 +50,6 @@ class CQRSServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-
         // Register discovery utilities
         $this->registerDiscoveryServices();
 

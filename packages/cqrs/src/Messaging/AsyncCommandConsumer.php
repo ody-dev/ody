@@ -5,6 +5,7 @@ namespace Ody\CQRS\Messaging;
 use Ody\AMQP\Attributes\Consumer;
 use Ody\AMQP\Message\ConsumerMessage;
 use Ody\AMQP\Message\Result;
+use Ody\Container\Container;
 use Ody\CQRS\Interfaces\CommandBusInterface;
 use PhpAmqpLib\Message\AMQPMessage;
 use Psr\Log\LoggerInterface;
@@ -18,7 +19,8 @@ class AsyncCommandConsumer extends ConsumerMessage
      */
     public function __construct(
         private readonly CommandBusInterface $commandBus,
-        private readonly LoggerInterface     $logger
+        private readonly LoggerInterface $logger,
+        private readonly Container       $container
     )
     {
     }
@@ -45,12 +47,33 @@ class AsyncCommandConsumer extends ConsumerMessage
             // Reconstruct the command object
             $command = $this->reconstructCommand($commandClass, $commandData);
 
-            // Execute the command directly through the command bus
             $this->logger->info("Processing async command: {$commandClass}");
+
+            // Look up the original handler for this command class
+            $handlerRegistry = $this->commandBus->getHandlerRegistry();
+
+            // If there's no handler, get it from the stored async handlers
+            if (!$handlerRegistry->hasHandlerFor($commandClass)) {
+                // Get the original handler info from AsyncMessagingBootstrap
+                $asyncMessagingBootstrap = $this->container->get(AsyncMessagingBootstrap::class);
+                $originalHandlerInfo = $asyncMessagingBootstrap->getOriginalHandlerInfo($commandClass);
+
+                if ($originalHandlerInfo) {
+                    // Temporarily register the original handler
+                    $handlerRegistry->registerHandler(
+                        $commandClass,
+                        $originalHandlerInfo['class'],
+                        $originalHandlerInfo['method']
+                    );
+                }
+            }
+
+            // Now dispatch the command
             $this->commandBus->dispatch($command);
 
             return Result::ACK;
         } catch (\Throwable $e) {
+            dd($e);
             $this->logger->error('Error processing async command: ' . $e->getMessage());
 
             // For serious errors that shouldn't be retried
@@ -59,7 +82,8 @@ class AsyncCommandConsumer extends ConsumerMessage
             }
 
             // For transient errors, requeue
-            return Result::REQUEUE;
+            // TODO: drop for now, REQUEUE when it works
+            return Result::DROP;
         }
     }
 

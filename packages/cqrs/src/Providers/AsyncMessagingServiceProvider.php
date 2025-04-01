@@ -20,13 +20,7 @@ class AsyncMessagingServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-        // Skip registration if components aren't installed
-        if (!self::isInstalled()) {
-            return;
-        }
+        $this->hasDependenciesInstalled();
 
         // Register the message broker
         $this->container->singleton(MessageBroker::class, function ($app) {
@@ -51,15 +45,17 @@ class AsyncMessagingServiceProvider extends ServiceProvider
     /**
      * Check if the async messaging components are installed
      */
-    public static function isInstalled(): bool
+    public function hasDependenciesInstalled(): bool
     {
-        var_dump(class_exists('Ody\AMQP\AMQPClient'));
-        var_dump(class_exists('Ody\CQRS\Interfaces\CommandBusInterface'));
+        if (!class_exists(\Ody\AMQP\AMQPClient::class)) {
+            throw new \Exception('AMPQ module is not installed, run composer require ody/amqp');
+        }
+
+        if (!class_exists(\Ody\CQRS\Bus\CommandBus::class)) {
+            throw new \Exception('CQRS module is not installed, run composer require ody/cqrs');
+        }
 
         return true;
-
-        return class_exists('Ody\AMQP\AMQPClient') &&
-            class_exists('Ody\CQRS\Interfaces\CommandBusInterface');
     }
 
     /**
@@ -69,14 +65,7 @@ class AsyncMessagingServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if ($this->isRunningInConsole()) {
-            return;
-        }
-
-        // Skip if components aren't installed
-        if (!self::isInstalled()) {
-            return;
-        }
+        $this->hasDependenciesInstalled();
 
         // Skip if not enabled in config
         if (!$this->container['config']->get('messaging.async.enabled', false)) {

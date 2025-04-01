@@ -3,6 +3,7 @@
 namespace Ody\AMQP;
 
 use Ody\AMQP\Attributes\Consumer;
+use Ody\Container\Container;
 use Ody\Process\ProcessManager;
 use Ody\Support\Config;
 use Ody\Task\TaskManager;
@@ -26,6 +27,7 @@ class AMQPBootstrap
         private ProcessManager $processManager,
         private ConnectionFactory $connectionFactory,
         private LoggerInterface $logger,
+        private Container $container
     )
     {
         $this->messageProcessor = new MessageProcessor($this->taskManager);
@@ -34,7 +36,8 @@ class AMQPBootstrap
             $this->taskManager,
             $this->processManager,
             $this->connectionFactory,
-            $this->logger
+            $this->logger,
+            $this->container
         );
     }
 

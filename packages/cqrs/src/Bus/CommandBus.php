@@ -13,6 +13,11 @@ use Throwable;
 class CommandBus implements CommandBusInterface
 {
     /**
+     * @var array Custom command handlers registered at runtime
+     */
+    private array $customHandlers = [];
+
+    /**
      * @var array List of middleware to apply
      */
     private array $middleware = [];
@@ -28,6 +33,29 @@ class CommandBus implements CommandBusInterface
         private ?MiddlewareProcessor   $middlewareProcessor = null
     )
     {
+    }
+
+    /**
+     * Register a custom handler for a command
+     *
+     * @param string $commandClass Command class name
+     * @param callable $handler Handler function
+     * @return void
+     */
+    public function registerHandler(string $commandClass, callable $handler): void
+    {
+        $this->customHandlers[$commandClass] = $handler;
+    }
+
+    /**
+     * Unregister a custom handler for a command
+     *
+     * @param string $commandClass Command class name
+     * @return void
+     */
+    public function unregisterHandler(string $commandClass): void
+    {
+        unset($this->customHandlers[$commandClass]);
     }
 
     /**
@@ -53,6 +81,13 @@ class CommandBus implements CommandBusInterface
     public function dispatch(object $command): void
     {
         $commandClass = get_class($command);
+
+        // Check for custom handler first
+        if (isset($this->customHandlers[$commandClass])) {
+            $handler = $this->customHandlers[$commandClass];
+            $handler($command);
+            return;
+        }
 
         // Check if we have a registered handler
         if (!$this->handlerRegistry->hasHandlerFor($commandClass)) {

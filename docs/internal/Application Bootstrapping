@@ -1,0 +1,177 @@
+# **Application Bootstrapping**  
+*(For Internal Documentation)*  
+
+## **1. Overview**  
+
+This document covers:  
+1. **Bootstrapping phases** (pre-server vs. per-worker).  
+2. **Service lifecycle management**.  
+3. **Common pitfalls and solutions**.  
+
+---
+
+## **2. Bootstrapping Phases**  
+
+### **2.1 Phase 1: Pre-Server Initialization**  
+**When**: Before `$server->start()`.  
+**Purpose**: Initialize **process-bound** services (AMQP, gRPC, WebSockets).  
+
+**Key Steps**:  
+```php
+// bootstrap/app.php
+$container = new Illuminate\Container\Container();
+
+// Register services that MUST persist (e.g., AMQP consumers)
+$container->singleton('amqp.consumer', function () {
+    $consumer = new AMQPConsumer();
+    $consumer->startSwooleCoroutine(); // Long-running
+    return $consumer;
+});
+
+return $container;
+```
+
+**Rules**:  
+✅ **Do**:  
+- Start **Swoole coroutines** (e.g., event loops).  
+- Bind **process-level singletons**.  
+
+❌ **Don’t**:  
+- Allocate request-scoped resources (DB connections).  
+
+---
+
+### **2.2 Phase 2: Worker Initialization**  
+**When**: In `workerStart` (after worker fork).  
+**Purpose**: Initialize **request-safe** services (DB, Redis, HTTP clients).  
+
+**Key Steps**:  
+```php
+$server->on('workerStart', function (Swoole\Http\Server $server) {
+    // Clone the base container (avoid shared state)
+    $workerContainer = clone $server->container;
+    
+    // Rebind request-scoped services
+    $workerContainer->bind('db', function () {
+        return new DatabaseConnection(); // Fresh per worker
+    });
+
+    $server->app = $workerContainer; // Attach to worker
+});
+```
+
+**Rules**:  
+✅ **Do**:  
+- Use `clone` to isolate worker state.  
+- Warm up **connection pools** (e.g., DB, Redis).  
+
+❌ **Don’t**:  
+- Mutate **process-bound services** (e.g., AMQP consumers).  
+
+---
+
+## **3. Handling Worker Restarts**  
+### **3.1 Problem**  
+Workers restart due to:  
+- `max_request` limits.  
+- Crashes (OOM, uncaught exceptions).  
+
+**Static variables (`static::$app`) may persist unexpectedly**.  
+
+### **3.2 Solution**  
+**Option A: Worker-Scoped Storage**  
+```php
+$server->on('workerStart', function () use ($server) {
+    $server->app = bootstrapApp(); // Fresh instance
+});
+```
+
+**Option B: Coroutine Context (Swoole ≥ 4.6)**  
+```php
+use Swoole\Coroutine;
+
+$server->on('request', function ($req, $res) {
+    $ctx = Coroutine::getContext();
+    $ctx['container'] = bootstrapApp(); // Request-scoped
+});
+```
+
+---
+
+## **4. Critical Edge Cases**  
+
+### **4.1 Static Variable Persistence**  
+**Issue**:  
+`static::$app` survives worker restarts (PHP process reuse).  
+
+**How to Reproduce**:  
+```php
+$server->set([
+    'max_request' => 1,
+    'reload_async' => true,  // Force hard restarts
+    'max_wait_time' => 1,    // Minimize grace period
+]);
+```
+
+**Fix**:  
+```php
+$server->on('workerStart', function () {
+    static::$app = null; // Explicit reset
+});
+```
+
+### **4.2 Singleton Contamination**  
+**Issue**:  
+DB connections retain transaction state across requests.  
+
+**Fix**:  
+```php
+$container->bind('db', function () {
+    return clone $originalDbConnection; // Fresh per request
+});
+```
+
+---
+
+## **5. Bootstrapping Checklist**  
+
+| Phase | Task | Example |
+|-------|------|---------|
+| **Pre-Server** | Start AMQP consumers | `$amqp->startCoroutine()` |  
+| **Pre-Server** | Bind process singletons | `$container->singleton('grpc')` |  
+| **WorkerStart** | Clone container | `$workerContainer = clone $container` |  
+| **WorkerStart** | Warm up DB pools | `$db->connect()` |  
+| **Request** | Use coroutine context | `Coroutine::getContext()` |  
+
+---
+
+## **6. Example Implementation**  
+
+### **6.1 `server.php`**  
+```php
+// Phase 1: Pre-server init
+$container = require __DIR__ . '/bootstrap/app.php';
+$container->make('amqp.consumer'); // Start Swoole processes
+
+// Phase 2: Worker init
+$server = new Swoole\Http\Server('0.0.0.0', 9501);
+$server->on('workerStart', function () use ($server, $container) {
+    $server->app = clone $container;
+    $server->app->make('db')->connect();
+});
+
+// Phase 3: Request handling
+$server->on('request', function ($req, $res) use ($server) {
+    $app = $server->app;
+    $app->make('router')->dispatch($req, $res);
+});
+```
+
+---
+
+## **7. Key Takeaways**  
+1. **Separate bootstrapping into phases**:  
+   - Pre-server → Process-bound services.  
+   - WorkerStart → Request-scoped services.  
+2. **Never rely on statics**: Use `$server->app` or coroutine context.  
+3. **Assume workers restart aggressively**: Design for statelessness.  

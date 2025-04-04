@@ -142,7 +142,8 @@ class Router
         $this->dispatcher = null;
 
         // Log route registration
-        $this->logger->debug("Router: Registered {$method} route: {$path}");
+        $workerId = getmypid();
+        $this->logger->debug("[Worker {$workerId}] Router: Registered {$method} route: {$path}");
 
         return $route;
     }
@@ -218,7 +219,6 @@ class Router
     {
         if ($this->dispatcher === null) {
             $this->dispatcher = $this->createDispatcher();
-            $this->logger->debug("Router: Dispatcher built.");
         }
     }
 
@@ -232,7 +232,6 @@ class Router
         if (!$this->routesLoaded) {
             $this->routesLoaded = true;
             $this->buildDispatcher();
-            $this->logger->debug("Router: Routes marked as loaded.");
         }
     }
 

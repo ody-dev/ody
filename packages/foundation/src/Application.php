@@ -200,7 +200,6 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
         $this->precacheControllers();
 
         $this->bootstrapped = true;
-        logger()->debug("Application::bootstrap() completed");
         return $this;
     }
 
@@ -249,12 +248,12 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
                 list($class, $method) = explode('@', $handler, 2);
                 try {
                     if ($controllerPool->controllerIsCached($class)) {
-                        logger()->debug("Controller {$class} already cached, skipping precaching");
                         continue;
                     }
 
                     $controllerPool->get($class);
-                    logger()->debug("Precaching controller: {$class}");
+                    $workerId = getmypid();
+                    logger()->debug("[Worker {$workerId}] Precaching controller: {$class}");
                 } catch (\Throwable $e) {
                     logger()->error("Failed to precache controller {$class}", ['error' => $e->getMessage()]);
                 }

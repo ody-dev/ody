@@ -1,30 +1,5 @@
 # Potential Bottlenecks in the Request Lifecycle
 
-## 1. Request Initialization
-
-### Current Implementation
-```php
-// From Http/RequestCallback.php
-public function handle(Request $request, Response $response): void
-{
-    // Convert Swoole request to PSR-7
-    $serverRequest = $this->createServerRequest($request);
-    // Process request...
-}
-```
-
-### Bottlenecks & Optimizations:
-- **PSR-7 Conversion Overhead**: Converting Swoole requests to PSR-7 creates objects and allocates memory
-  - **Optimization**: Implement lazy loading of request attributes and lazy parsing of bodies
-  - **Optimization**: Cache parsed query parameters and body for re-use within the same request
-
-- **Global Request Creation**:
-  ```php
-  // In Http/Request.php
-  public static function createFromGlobals(): self
-  ```
-  - **Optimization**: In Swoole context, avoid using globals entirely, use the Swoole request directly
-
 ## 2. Route Matching
 
 ### Current Implementation

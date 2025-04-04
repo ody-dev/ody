@@ -62,7 +62,7 @@ class ControllerPool
         $this->enableCaching = $enableCaching;
         $this->excludedControllers = $excludedControllers;
         $workerId = getmypid();
-        $this->logger->debug("[Worker {$workerId}]ControllerPool instance created for worker.", [
+        $this->logger->debug("[Worker {$workerId}] ControllerPool instance created for worker.", [
             'cachingEnabled' => $this->enableCaching,
             'excludedCount' => count($this->excludedControllers)
         ]);

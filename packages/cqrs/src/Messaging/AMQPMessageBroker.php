@@ -20,7 +20,6 @@ class AMQPMessageBroker implements MessageBroker
      */
     public function send(string $channel, object $message): bool
     {
-        logger()->debug('`-----------AMQPMessageBroker::send()--------------');
         // Get the producer class for this channel
         $producerClass = $this->getProducerClassForChannel($channel);
 

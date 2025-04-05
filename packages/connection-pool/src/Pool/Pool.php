@@ -90,7 +90,7 @@ class Pool implements PoolInterface, PoolControlInterface
      */
     public function borrow(): mixed
     {
-        $cid = Coroutine::getCid();
+        $cid = getmypid() . '-' . Coroutine::getCid();
 
         if ($this->config->bindToCoroutine && array_key_exists($cid, $this->itemToCoroutineBindings)) {
             return $this->itemToCoroutineBindings[$cid];
@@ -128,7 +128,6 @@ class Pool implements PoolInterface, PoolControlInterface
 
             Coroutine::defer(function () use ($cid, $itemRef) {
                 unset($this->itemToCoroutineBindings[$cid]);
-
                 $item = $itemRef->get();
 
                 $this->return($item);
@@ -164,7 +163,6 @@ class Pool implements PoolInterface, PoolControlInterface
             $poolItemWrapper->setState(PoolItemState::RESERVED);
 
             $this->poolItemHookManager->run(PoolItemHook::AFTER_RETURN, $poolItemWrapper);
-
             if (!$poolItemWrapper->compareAndSetState(PoolItemState::RESERVED, PoolItemState::IDLE)) {
                 throw new LogicException();
             }
@@ -175,7 +173,7 @@ class Pool implements PoolInterface, PoolControlInterface
         $isReturned = $this->concurrentBag->push($poolItemWrapper, $this->config->returningTimeoutSec);
 
         if (!$isReturned) {
-            $this->idledItemStorage->detach($poolItemWrapper);
+            $this->idledItemStorage->detach($poolItemWrapper); // This line already exists
         }
     }
 
@@ -332,7 +330,7 @@ class Pool implements PoolInterface, PoolControlInterface
 
         $this->borrowedItemStorage->detach($poolItem);
 
-        unset($this->itemToCoroutineBindings[Coroutine::getCid()]);
+        unset($this->itemToCoroutineBindings[getmypid() . '-' . Coroutine::getCid()]);
 
         if ($poolItemWrapper->getState() != PoolItemState::IN_USE) {
             throw new LogicException();
@@ -360,22 +358,37 @@ class Pool implements PoolInterface, PoolControlInterface
      */
     protected function getPoolItemWrapper(float $timeLeftSec, bool $increaseItemsOnEmptyPool): PoolItemWrapperInterface
     {
-        $isPoolEmpty = $this->concurrentBag->isEmpty() && $this->getCurrentSize() < $this->config->size;
+        $poolEmptyStartCheck = $this->concurrentBag->isEmpty(); // Check before potential creation
+        $currentSize = $this->getCurrentSize();
 
-        if ($increaseItemsOnEmptyPool && $isPoolEmpty) {
-            \Swoole\Coroutine\go(function () {
-                try {
-                    $this->increaseItems();
-                } catch (Throwable $exception) {
-                    $errorMessage = sprintf(
-                        'Can\'t create new item for empty pool (%s): %s',
-                        (new ReflectionClass($exception))->getShortName(),
-                        $exception->getMessage(),
-                    );
+        // Condition to check if we *need* to create synchronously
+        $needsSynchronousCreation = $increaseItemsOnEmptyPool && $poolEmptyStartCheck && $currentSize < $this->config->size;
 
-                    $this->logger->error($errorMessage, ['pool_name' => $this->getName()]);
+
+        if ($needsSynchronousCreation) {
+            $this->logger->debug(sprintf('[Pool %s] Channel empty and pool not full. Attempting synchronous increaseItems.', $this->getName()));
+            try {
+                // *** Call increaseItems directly (synchronously) ***
+                $success = $this->increaseItems();
+                if (!$success) {
+                    $this->logger->warning(sprintf('[Pool %s] Synchronous increaseItems failed to push item.', $this->getName()));
+
+                    throw new Exceptions\BorrowTimeoutException('Synchronous connection creation failed to add item to pool.');
+                } else {
+                    $this->logger->debug(sprintf('[Pool %s] Synchronous increaseItems successful.', $this->getName()));
                 }
-            });
+            } catch (Throwable $exception) {
+                $errorMessage = sprintf(
+                    'Can\'t create new item synchronously for empty pool (%s): %s',
+                    (new ReflectionClass($exception))->getShortName(),
+                    $exception->getMessage(),
+                );
+                $this->logger->error($errorMessage, ['pool_name' => $this->getName()]);
+                // Throw exception to prevent pop timeout
+                throw new Exceptions\BorrowTimeoutException($errorMessage, 0, $exception);
+            }
+
+            $timeLeftSec = min($timeLeftSec, 0.1); // Use a shorter timeout after sync creation attempt
         }
 
         /** @var PoolItemWrapperInterface<TItem>|false $poolItemWrapper */

@@ -371,14 +371,12 @@ class AMQPConsumerProcess extends StandardProcess
     {
         try {
             $deliveryTag = $message->getDeliveryTag();
-            logger()->debug("[AMQP] Processing message with delivery tag: {$deliveryTag}");
 
             // Process the message directly
             $data = json_decode($message->body, true) ?: [];
             logger()->debug("[AMQP] Message content: " . json_encode($data));
 
             $result = $consumer->consumeMessage($data, $message);
-            logger()->debug("[AMQP] Consumer returned result: {$result->name}");
 
             // Handle the result
             switch ($result) {

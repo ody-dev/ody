@@ -45,8 +45,9 @@ class AsyncMessagingBootstrap
             $this->registerAsyncHandlerForCommand($commandClass, $channelInfo['channel']);
         }
 
+        $workerId = getmypid();
         $this->logger->debug(sprintf(
-            'Registered %d async command handlers',
+            "[Worker {$workerId}] Registered %d async command handlers",
             count($this->asyncHandlers)
         ));
     }
@@ -130,7 +131,8 @@ class AsyncMessagingBootstrap
                     ]
                 ];
 
-                $this->logger->debug("Found async handler for {$commandClass} on channel {$asyncAttribute->channel}");
+                $workerId = getmypid();
+                $this->logger->debug("[Worker {$workerId}] Found async handler for {$commandClass} on channel {$asyncAttribute->channel}");
             }
         } catch (\Throwable $e) {
             $this->logger->error("Error processing file {$filePath}: " . $e->getMessage());
@@ -160,7 +162,8 @@ class AsyncMessagingBootstrap
             }
         );
 
-        $this->logger->debug("Registered async handler for {$commandClass} on channel {$channel}");
+        $workerId = getmypid();
+        $this->logger->debug("[Worker {$workerId}] Registered async handler for {$commandClass} on channel {$channel}");
     }
 
     /**

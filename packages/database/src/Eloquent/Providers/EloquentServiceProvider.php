@@ -29,8 +29,6 @@ class EloquentServiceProvider extends ServiceProvider
         // You might need a non-static property on the provider instance: private bool $hasBooted = false;
         // if ($this->hasBooted) { return; }
 
-        logger()->debug("Booting Eloquent via Service Provider...");
-
         $capsule = $this->container->make(\Illuminate\Database\Capsule\Manager::class); // Get the singleton
         $config = config('database.environments')[config('app.environment', 'local')]; // Get config
 
@@ -50,9 +48,7 @@ class EloquentServiceProvider extends ServiceProvider
         }
 
 //        $capsule->setAsGlobal();
-        $capsule->bootEloquent(); // Still potentially problematic
-
-        // $this->hasBooted = true; // Mark as booted for this provider instance
+        $capsule->bootEloquent();
     }
 
 // Helper function moved from static Eloquent class

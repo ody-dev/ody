@@ -22,6 +22,12 @@ use Ody\DB\ConnectionManager;
 
 class ConnectionFactory
 {
+    public function __construct(
+        private ConnectionManager $connectionManager
+    )
+    {
+    }
+
     /**
      * Create a new connection instance based on the configuration.
      *
@@ -30,15 +36,16 @@ class ConnectionFactory
      * @return MySqlConnection
      * @throws BorrowTimeoutException
      */
-    public static function make(array $config, string $name = 'default'): MySqlConnection
+    public function make(array $config, string $name = 'default'): MySqlConnection
     {
-        ConnectionManager::initPool($config, $name);
+        $this->connectionManager->getPool($config, $name);
 
         return new MySqlConnection(
-            ConnectionManager::getConnection($name),
+            $this->connectionManager->getConnection($name, $config),
             $config['database'] ?? $config['db_name'] ?? '',
             $config['prefix'] ?? '',
-            $config
+            $config,
+            $this->connectionManager
         );
     }
 }

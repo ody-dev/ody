@@ -11,14 +11,25 @@ namespace Ody\DB\Doctrine;
 
 use Doctrine\DBAL\Driver\AbstractMySQLDriver;
 use Doctrine\DBAL\Driver\Connection;
-use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
+use InvalidArgumentException;
 use Ody\DB\ConnectionManager;
 use PDO;
 
 class DBALMysQLDriver extends AbstractMySQLDriver
 {
+    /**
+     * @var PDO|null
+     */
     private ?PDO $connection = null;
+
+    /**
+     * @var string
+     */
     private string $poolName = 'default';
+
+    /**
+     * @var array
+     */
     private array $config = [];
 
     /**
@@ -26,10 +37,18 @@ class DBALMysQLDriver extends AbstractMySQLDriver
      *
      * @param array $params
      * @return Connection
-     * @throws BorrowTimeoutException
      */
     public function connect(array $params): Connection
     {
+        // Retrieve the ConnectionManager instance from the parameters
+        if (!isset($params['connectionManager']) || !$params['connectionManager'] instanceof ConnectionManager) {
+            throw new InvalidArgumentException(
+                'The ConnectionManager instance was not provided in the connection parameters.'
+            );
+        }
+        /** @var ConnectionManager $connectionManager */
+        $connectionManager = $params['connectionManager'];
+
         // Convert DBAL params to ConnectionManager config format
         $this->config = [
             'driver' => $params['driver'] ?? 'mysql',
@@ -44,20 +63,18 @@ class DBALMysQLDriver extends AbstractMySQLDriver
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 ],
+            'pool' => $params['pool']
         ];
 
         // Check if connection pool is enabled
-        if (config('database.enable_connection_pool', true)) {
+        if ($this->config['pool']['enabled']) {
             // Use a custom pool name if provided
             if (isset($params['poolName'])) {
                 $this->poolName = $params['poolName'];
             }
 
             // Initialize the pool if it doesn't exist yet
-            ConnectionManager::initPool($this->config, $this->poolName);
-
-            // Borrow a PDO connection from the pool
-            $this->connection = ConnectionManager::getConnection($this->poolName);
+            $pdo = $connectionManager->getConnection($this->poolName, $this->config);
         } else {
             // Create a direct PDO connection if pool is disabled
             $dsn = sprintf(
@@ -69,7 +86,7 @@ class DBALMysQLDriver extends AbstractMySQLDriver
                 $this->config['charset']
             );
 
-            $this->connection = new PDO(
+            $pdo = new PDO(
                 $dsn,
                 $this->config['username'],
                 $this->config['password'],
@@ -78,7 +95,7 @@ class DBALMysQLDriver extends AbstractMySQLDriver
         }
 
         // Create a connection wrapper that implements Doctrine's Connection interface
-        return new PDOConnection($this->connection);
+        return new PDOConnection($pdo);
     }
 
     /**

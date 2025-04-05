@@ -33,7 +33,7 @@ class MySqlConnection extends Connection
     /**
      * {@inheritdoc}
      */
-    public function __construct($pdo, $database = '', $tablePrefix = '', array $config = [])
+    public function __construct($pdo, $database = '', $tablePrefix = '', array $config = [], private ?ConnectionManager $connectionManager = null)
     {
         parent::__construct($pdo, $database, $tablePrefix, $config);
 
@@ -117,7 +117,7 @@ class MySqlConnection extends Connection
      */
     public function select($query, $bindings = [], $useReadPdo = true): array
     {
-        $pdo = ConnectionManager::getConnection();
+        $pdo = $this->connectionManager->getConnection();
 
         return $this->run($query, $bindings, function ($query, $bindings) use ($pdo) {
             if ($this->pretending()) {

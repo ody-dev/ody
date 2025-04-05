@@ -58,8 +58,6 @@ class ConnectionManager
             return $this->pools[$name];
         }
 
-//        $config = $this->getSpecificConfig($name);
-
         $dsn = sprintf(
             '%s:host=%s;port=%s;dbname=%s;charset=%s',
             $config['driver'] ?? 'mysql',
@@ -69,7 +67,7 @@ class ConnectionManager
             $config['charset'] ?? 'utf8mb4'
         );
 
-        $connectionsPerWorker = $config['pooling']['connections_per_worker'] ?? 64;
+        $connectionsPerWorker = $config['pool']['connections_per_worker'] ?? 64;
 
         // Create a pool with multiple connections per worker
         $poolFactory = ConnectionPoolFactory::create(
@@ -86,8 +84,8 @@ class ConnectionManager
             )
         );
 
-        $poolFactory->setMinimumIdle(max(2, $connectionsPerWorker / 2));
-        $poolFactory->setIdleTimeoutSec($config['idle_timeout'] ?? 60.0);
+        $poolFactory->setMinimumIdle($config['pool']['minimum_idle'] ?? max(2, $connectionsPerWorker / 2));
+        $poolFactory->setIdleTimeoutSec($config['pool']['idle_timeout'] ?? 60.0);
         $poolFactory->setMaxLifetimeSec($config['max_lifetime'] ?? 3600.0);
         $poolFactory->setBorrowingTimeoutSec($config['borrowing_timeout'] ?? 0.5);
         $poolFactory->setReturningTimeoutSec($config['returning_timeout'] ?? 0.1);

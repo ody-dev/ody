@@ -12,7 +12,7 @@ return [
             'db_name' => env('DB_DATABASE', 'ody'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_general_ci',
-            'prefix'    => '',
+            'prefix' => '',
             'options' => [
                 // PDO::ATTR_EMULATE_PREPARES => true,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

@@ -11,8 +11,10 @@ namespace Ody\DB\Doctrine\Providers;
 
 use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\DriverManager;
+use Ody\DB\ConnectionManager;
 use Ody\DB\Doctrine\DBALMysQLDriver;
 use Ody\Foundation\Providers\ServiceProvider;
+use Psr\Log\LoggerInterface;
 
 class DBALServiceProvider extends ServiceProvider
 {
@@ -23,7 +25,18 @@ class DBALServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $this->container->singleton('db.dbal', function ($app) {
+        $this->container->singleton(ConnectionManager::class, function ($app) {
+            // Inject necessary dependencies from the container
+            $config = $app->make('config')->get('database'); // Get database config
+            $logger = $app->make(LoggerInterface::class); // Get logger
+            return new ConnectionManager($config, $logger);
+        });
+
+//        $this->container->bind(DBALMysQLDriver::class, function($app) {
+//            return new DBALMysQLDriver($app->make(ConnectionManager::class));
+//        });
+
+        $this->container->bind('db.dbal', function ($app) {
             $config = config('database.environments')[config('app.environment', 'local')];
 
             $connectionParams = [
@@ -34,7 +47,9 @@ class DBALServiceProvider extends ServiceProvider
                 'host' => $config['host'] ?? 'localhost',
                 'port' => $config['port'] ?? 3306,
                 'charset' => $config['charset'] ?? 'utf8mb4',
-                'poolName' => 'dbal-default', // Use a distinct pool name for DBAL
+                'poolName' => 'dbal-default-' . getmypid(), // Use a distinct pool name for DBAL
+                'connectionManager' => $app->make(ConnectionManager::class),
+                'pool' => $config['pool']
             ];
 
             $configuration = new Configuration();
@@ -44,7 +59,7 @@ class DBALServiceProvider extends ServiceProvider
 
         // Register a reusable factory function for creating DBAL connections
         $this->container->bind('db.dbal.factory', function ($app) {
-            return function (string $connectionName = 'default') {
+            return function (string $connectionName = 'default') use ($app) {
                 $config = config('database.environments')[$connectionName] ??
                     config('database.environments')[config('app.environment', 'local')];
 
@@ -56,7 +71,7 @@ class DBALServiceProvider extends ServiceProvider
                     'host' => $config['host'] ?? 'localhost',
                     'port' => $config['port'] ?? 3306,
                     'charset' => $config['charset'] ?? 'utf8mb4',
-                    'poolName' => "dbal-$connectionName", // Use distinct pool names for different connections
+                    'poolName' => $connectionName, // Use distinct pool names for different connections
                 ];
 
                 $configuration = new Configuration();

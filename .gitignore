@@ -1,4 +1,7 @@
-framework
 composer.lock
 vendor
 .idea
+framework/vendor/*
+framework/.env
+framework/.idea
+framework/storage/logs

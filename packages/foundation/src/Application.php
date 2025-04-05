@@ -7,14 +7,6 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-/*
- * This file is part of ODY framework.
- *
- * @link     https://ody.dev
- * @document https://ody.dev/docs
- * @license  https://github.com/ody-dev/ody-core/blob/master/LICENSE
- */
-
 namespace Ody\Foundation;
 
 use Mockery\Exception;
@@ -32,10 +24,10 @@ use Ody\Foundation\Providers\EnvServiceProvider;
 use Ody\Foundation\Providers\LoggingServiceProvider;
 use Ody\Foundation\Providers\ServiceProviderManager;
 use Ody\Foundation\Router\Router;
-use Ody\Foundation\Router\RouteService;
 use Ody\Swoole\Coroutine\ContextManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -43,7 +35,7 @@ use Throwable;
 /**
  * Main application class with integrated bootstrapping
  */
-class Application implements \Psr\Http\Server\RequestHandlerInterface
+class Application implements RequestHandlerInterface
 {
     /**
      * @var Router|null
@@ -66,16 +58,6 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
     private ?MiddlewareManager $middlewareManager = null;
 
     /**
-     * @var bool Indicates if the application is running in console
-     */
-    private bool $runningInConsole = false;
-
-    /**
-     * @var bool Indicates if console detection has been performed
-     */
-    private bool $consoleDetected = false;
-
-    /**
      * @var bool Whether the application has been bootstrapped
      */
     private bool $bootstrapped = false;
@@ -84,11 +66,6 @@ class Application implements \Psr\Http\Server\RequestHandlerInterface
      * @var ControllerDispatcher|null
      */
     protected ?ControllerDispatcher $controllerDispatcher = null;
-
-    /**
-     * @var RouteService|null
-     */
-    protected ?RouteService $routeService = null;
 
     /**
      * Core providers that must be registered in a specific order

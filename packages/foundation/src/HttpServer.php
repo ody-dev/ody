@@ -63,7 +63,6 @@ class HttpServer
         $workerPid = getmypid();
         logger()->debug('worker start: ' . $workerId);
         $app = Bootstrap::init();
-        $app = $app->bootstrap();
 
         static::$workerApplicationMap[$workerPid] = $app;
 

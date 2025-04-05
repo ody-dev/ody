@@ -15,8 +15,6 @@ use Ody\Foundation\MiddlewareManager;
 use Psr\Log\LoggerInterface;
 use function FastRoute\simpleDispatcher;
 
-//use function Ody\Foundation\gettype;
-
 class Router
 {
     /**

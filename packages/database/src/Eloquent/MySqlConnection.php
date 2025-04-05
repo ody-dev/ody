@@ -117,15 +117,15 @@ class MySqlConnection extends Connection
      */
     public function select($query, $bindings = [], $useReadPdo = true): array
     {
-        $pdo = $this->connectionManager->getConnection();
+        $this->pdo = $this->connectionManager->getConnection();
 
-        return $this->run($query, $bindings, function ($query, $bindings) use ($pdo) {
+        return $this->run($query, $bindings, function ($query, $bindings) {
             if ($this->pretending()) {
                 return [];
             }
 
             // Use the freshly borrowed connection
-            $statement = $this->prepared($pdo->prepare($query));
+            $statement = $this->prepared($this->pdo->prepare($query));
 
             $this->bindValues($statement, $this->prepareBindings($bindings));
 

@@ -109,7 +109,6 @@ class ConnectionManager
                 {
                     if (!$connection instanceof \PDO) return false;
                     try {
-                        error_log('keepalive check ' . $this->config['pool']['pool_name'] . getmypid());
                         $connection->getAttribute(\PDO::ATTR_SERVER_INFO);
                         return true;
                     } catch (\Throwable) {
@@ -119,8 +118,11 @@ class ConnectionManager
 
                 public function getIntervalSec(): float
                 {
+                    if (isset($this->config['pool']['keep_alive_check_interval'])) {
+                        return (float)$this->config['pool']['keep_alive_check_interval'];
+                    }
                     // Has to be lower than MySQL wait_timeout
-                    return (float)$this->config['pool']['keep_alive_check_interval'];
+                    return 60;
                 }
             },
         );

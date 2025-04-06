@@ -357,37 +357,22 @@ class Pool implements PoolInterface, PoolControlInterface
      */
     protected function getPoolItemWrapper(float $timeLeftSec, bool $increaseItemsOnEmptyPool): PoolItemWrapperInterface
     {
-        $poolEmptyStartCheck = $this->concurrentBag->isEmpty(); // Check before potential creation
-        $currentSize = $this->getCurrentSize();
+        $isPoolEmpty = $this->concurrentBag->isEmpty() && $this->getCurrentSize() < $this->config->size;
 
-        // Condition to check if we *need* to create synchronously
-        $needsSynchronousCreation = $increaseItemsOnEmptyPool && $poolEmptyStartCheck && $currentSize < $this->config->size;
+        if ($increaseItemsOnEmptyPool && $isPoolEmpty) {
+            \Swoole\Coroutine\go(function () {
+                try {
+                    $this->increaseItems();
+                } catch (Throwable $exception) {
+                    $errorMessage = sprintf(
+                        'Can\'t create new item for empty pool (%s): %s',
+                        (new ReflectionClass($exception))->getShortName(),
+                        $exception->getMessage(),
+                    );
 
-
-        if ($needsSynchronousCreation) {
-            $this->logger->debug(sprintf('[Pool %s] Channel empty and pool not full. Attempting synchronous increaseItems.', $this->getName()));
-            try {
-                // *** Call increaseItems directly (synchronously) ***
-                $success = $this->increaseItems();
-                if (!$success) {
-                    $this->logger->warning(sprintf('[Pool %s] Synchronous increaseItems failed to push item.', $this->getName()));
-
-                    throw new Exceptions\BorrowTimeoutException('Synchronous connection creation failed to add item to pool.');
-                } else {
-                    $this->logger->debug(sprintf('[Pool %s] Synchronous increaseItems successful.', $this->getName()));
+                    $this->logger->error($errorMessage, ['pool_name' => $this->getName()]);
                 }
-            } catch (Throwable $exception) {
-                $errorMessage = sprintf(
-                    'Can\'t create new item synchronously for empty pool (%s): %s',
-                    (new ReflectionClass($exception))->getShortName(),
-                    $exception->getMessage(),
-                );
-                $this->logger->error($errorMessage, ['pool_name' => $this->getName()]);
-                // Throw exception to prevent pop timeout
-                throw new Exceptions\BorrowTimeoutException($errorMessage, 0, $exception);
-            }
-
-            $timeLeftSec = min($timeLeftSec, 0.1); // Use a shorter timeout after sync creation attempt
+            });
         }
 
         /** @var PoolItemWrapperInterface<TItem>|false $poolItemWrapper */

@@ -3,7 +3,10 @@
   "description": "logging integration for ODY Framework",
   "type": "library",
   "license": "MIT",
-  "keywords": ["ody", "logging"],
+  "keywords": [
+    "ody",
+    "logging"
+  ],
   "authors": [
     {
       "name": "Ilyas Deckers",
@@ -42,5 +45,6 @@
     "fix-style": "phpcbf"
   },
   "minimum-stability": "dev",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "version": "0.2.0"
 }

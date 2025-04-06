@@ -13,7 +13,7 @@
     "php": ">=8.3",
     "ext-pdo": "*",
     "ext-swoole": "^6.0",
-    "ody/connection-pool": "^0.1.0",
+    "ody/connection-pool": "^0.2.0",
     "illuminate/database": "^11.43",
     "doctrine/orm": "^3.3.0",
     "doctrine/dbal": "^4.2.0",
@@ -26,7 +26,7 @@
   },
   "autoload": {
     "psr-4": {
-        "Ody\\DB\\": "src/"
+      "Ody\\DB\\": "src/"
     }
   },
   "autoload-dev": {
@@ -38,5 +38,6 @@
     "providers": [
       "Ody\\Database\\DatabseServiceProvider"
     ]
-  }
+  },
+  "version": "0.2.0"
 }

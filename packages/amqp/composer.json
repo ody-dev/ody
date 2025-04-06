@@ -11,13 +11,14 @@
   ],
   "require": {
     "php": ">=8.3",
-    "ody/task": "^0.1.0",
-    "ody/process": "^0.1.0",
+    "ody/task": "^0.1.2",
+    "ody/process": "^0.1.2",
     "php-amqplib/php-amqplib": "^3.7"
   },
   "autoload": {
     "psr-4": {
       "Ody\\AMQP\\": "src/"
     }
-  }
+  },
+  "version": "0.2.0"
 }

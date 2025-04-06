@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Ody\DB;
 
 use Ody\ConnectionPool\ConnectionPoolFactory;
+use Ody\ConnectionPool\KeepaliveCheckerInterface;
 use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use Ody\ConnectionPool\Pool\PoolInterface;
 use PDO;
@@ -94,6 +95,36 @@ class ConnectionManager
         $poolFactory->setAutoReturn(true);
         $poolFactory->setBindToCoroutine(true);
 
+        $poolFactory->addKeepaliveChecker(
+            new class ($config) implements KeepaliveCheckerInterface {
+
+                private array $config;
+
+                public function __construct($config)
+                {
+                    $this->config = $config;
+                }
+
+                public function check(mixed $connection): bool
+                {
+                    if (!$connection instanceof \PDO) return false;
+                    try {
+                        error_log('keepalive check ' . $this->config['pool']['pool_name'] . getmypid());
+                        $connection->getAttribute(\PDO::ATTR_SERVER_INFO);
+                        return true;
+                    } catch (\Throwable) {
+                        return false; // Connection is likely dead
+                    }
+                }
+
+                public function getIntervalSec(): float
+                {
+                    // Has to be lower than MySQL wait_timeout
+                    return (float)$this->config['pool']['keep_alive_check_interval'];
+                }
+            },
+        );
+
         // Add a connection checker to verify connections aren't in a transaction
         $poolFactory->addConnectionChecker(function (PDO $connection): bool {
             try {
@@ -102,6 +133,7 @@ class ConnectionManager
                 return false;
             }
         });
+
 
         $poolInstanceName = $config['pool']['pool_name'] . '-' . $workerId ?? 'pool-' . $workerId;
         $pool = $poolFactory->instantiate($poolInstanceName);

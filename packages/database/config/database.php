@@ -52,6 +52,7 @@ return [
                 'borrowing_timeout' => 5,
                 'returning_timeout' => 1,
                 'leak_detection_threshold' => 10.0,
+                'keep_alive_check_interval' => 60.0, // Has to be lower than MySQL wait_timeout
             ]
         ],
     ],

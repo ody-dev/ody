@@ -2,7 +2,7 @@
 
 return [
     'name' => env('APP_NAME', 'Ody API'),
-    'env' => env('APP_ENV', 'production'),
+    'environment' => env('APP_ENV', 'production'),
     'debug' => (bool)env('APP_DEBUG', false),
     'url' => env('APP_URL', 'http://localhost'),
     'timezone' => env('APP_TIMEZONE', 'UTC'),
@@ -38,12 +38,12 @@ return [
 
             // Package providers
             \Ody\DB\Providers\DatabaseServiceProvider::class,
-//            \Ody\DB\Doctrine\Providers\DBALServiceProvider::class,
-            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
-            \Ody\Auth\Providers\AuthServiceProvider::class,
-            \Ody\AMQP\Providers\AMQPServiceProvider::class,
-            \Ody\CQRS\Providers\CQRSServiceProvider::class,
-            \Ody\CQRS\Providers\AsyncMessagingServiceProvider::class,
+            \Ody\DB\Doctrine\Providers\DBALServiceProvider::class,
+//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
+//            \Ody\Auth\Providers\AuthServiceProvider::class,
+//            \Ody\AMQP\Providers\AMQPServiceProvider::class,
+//            \Ody\CQRS\Providers\CQRSServiceProvider::class,
+//            \Ody\CQRS\Providers\AsyncMessagingServiceProvider::class,
 
             // Add your application service providers here
             \App\Providers\AppServiceProvider::class,
@@ -71,11 +71,11 @@ return [
          * | 'http' array to ensure it's correctly initialized in each distinct context.
          */
         'beforeServerStart' => [
-            \Ody\DB\Providers\DatabaseServiceProvider::class,
-            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
-            \Ody\Process\Providers\ProcessServiceProvider::class,
-            \Ody\CQRS\Providers\CQRSServiceProvider::class,
-            \Ody\AMQP\Providers\AMQPServiceProvider::class,
+//            \Ody\DB\Providers\DatabaseServiceProvider::class,
+//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
+//            \Ody\Process\Providers\ProcessServiceProvider::class,
+//            \Ody\CQRS\Providers\CQRSServiceProvider::class,
+//            \Ody\AMQP\Providers\AMQPServiceProvider::class,
         ]
     ],
     'aliases' => [
@@ -92,16 +92,16 @@ return [
     'middleware' => [
         'global' => [
             \Ody\Foundation\Middleware\ErrorHandlerMiddleware::class,
-            \Ody\Foundation\Middleware\CorsMiddleware::class,
-            \Ody\Foundation\Middleware\JsonBodyParserMiddleware::class,
+//            \Ody\Foundation\Middleware\CorsMiddleware::class,
+//            \Ody\Foundation\Middleware\JsonBodyParserMiddleware::class,
         ],
         'named' => [
-            'auth' => \Ody\Auth\Middleware\AuthMiddleware::class,
+//            'auth' => \Ody\Auth\Middleware\AuthMiddleware::class,
         ],
         'groups' => [
             'api' => [
-                \Ody\Auth\Middleware\AuthMiddleware::class,
-                \Ody\Foundation\Middleware\ThrottleMiddleware::class,
+//                \Ody\Auth\Middleware\AuthMiddleware::class,
+//                \Ody\Foundation\Middleware\ThrottleMiddleware::class,
             ]
         ]
     ],

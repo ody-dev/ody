@@ -35,5 +35,6 @@
     "test:unit": "phpunit --testsuite=Unit",
     "test:integration": "phpunit --testsuite=Integration",
     "test:coverage": "phpunit --coverage-html coverage-report"
-  }
+  },
+  "version": "0.2.0"
 }

@@ -44,5 +44,6 @@
     "allow-plugins": {
       "php-http/discovery": true
     }
-  }
+  },
+  "version": "0.2.0"
 }

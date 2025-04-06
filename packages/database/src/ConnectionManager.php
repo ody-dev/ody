@@ -52,8 +52,9 @@ class ConnectionManager
      * @param string $name
      * @return PoolInterface
      */
-    public function getPool(array $config, string $name = 'default'): PoolInterface
+    public function getPool(array $config): PoolInterface
     {
+        $name = getmypid();
         if (isset($this->pools[$name])) {
             return $this->pools[$name];
         }
@@ -71,7 +72,7 @@ class ConnectionManager
 
         // Create a pool with multiple connections per worker
         $poolFactory = ConnectionPoolFactory::create(
-            size: $connectionsPerWorker,
+            size: (int)$connectionsPerWorker,
             factory: new PDOConnectionFactory(
                 dsn: $dsn,
                 username: $config['username'] ?? '',
@@ -107,6 +108,8 @@ class ConnectionManager
 
         $this->pools[$name] = $pool;
         $this->logger->debug("Initialized pool: {$poolInstanceName}");
+
+        $pool->warmup();
 
         return $pool;
     }

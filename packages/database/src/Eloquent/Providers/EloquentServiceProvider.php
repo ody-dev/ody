@@ -23,17 +23,17 @@ class EloquentServiceProvider extends ServiceProvider
         $this->container->singleton('db', function ($app) {
             return new \Ody\DB\Eloquent\Facades\DB();
         });
-    }
 
-    public function boot(): void
-    {
         $this->container->singleton(ConnectionManager::class, function ($app) {
             // Inject necessary dependencies from the container
             $config = $app->make('config')->get('database'); // Get database config
             $logger = $app->make(LoggerInterface::class); // Get logger
             return new ConnectionManager($config, $logger);
         });
+    }
 
+    public function boot(): void
+    {
         $capsule = $this->container->make(\Illuminate\Database\Capsule\Manager::class); // Get the singleton
         $config = config('database.environments')[config('app.environment', 'local')]; // Get config
 
@@ -42,6 +42,11 @@ class EloquentServiceProvider extends ServiceProvider
         $capsule->addConnection($eloquentConfig, 'default');
 
         if ($config['pool']['enabled']) {
+            /** @var ConnectionManager $pool */
+            $pool = $this->container->make(ConnectionManager::class);
+            $pool = $pool->getPool($config);
+            $pool->warmup();
+
             // Register resolver ONCE per container boot
             \Illuminate\Database\Connection::resolverFor('mysql', function ($pdo, $database, $prefix, $config) {
                 // Ensure ConnectionFactory::make is safe for Swoole/Coroutines

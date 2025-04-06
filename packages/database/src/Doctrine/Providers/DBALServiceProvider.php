@@ -20,7 +20,12 @@ class DBALServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        // No initialization needed here - will be done on first use
+        $config = config('database.environments')[config('app.environment', 'local')];
+        if ($config['pool']['enabled']) {
+            $pool = $this->container->make(ConnectionManager::class);
+            $pool = $pool->getPool($config);
+            $pool->warmup();
+        }
     }
 
     public function register(): void
@@ -47,7 +52,7 @@ class DBALServiceProvider extends ServiceProvider
                 'host' => $config['host'] ?? 'localhost',
                 'port' => $config['port'] ?? 3306,
                 'charset' => $config['charset'] ?? 'utf8mb4',
-                'poolName' => 'dbal-default-' . getmypid(), // Use a distinct pool name for DBAL
+                'poolName' => 'default-' . getmypid(), // Use a distinct pool name for DBAL
                 'connectionManager' => $app->make(ConnectionManager::class),
                 'pool' => $config['pool']
             ];

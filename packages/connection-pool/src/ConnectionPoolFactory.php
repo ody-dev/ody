@@ -19,8 +19,8 @@ use Ody\ConnectionPool\Tasks\KeepaliveCheckTimerTask;
 use Ody\ConnectionPool\Tasks\LeakDetectionTimerTask;
 use Ody\ConnectionPool\Tasks\PoolItemUpdaterTimerTask;
 use Ody\ConnectionPool\Tasks\ResizerTimerTask;
+use Ody\Logger\StreamLogger;
 use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 use ReflectionClass;
 use function array_map;
 use function count;
@@ -59,7 +59,7 @@ class ConnectionPoolFactory
         protected PoolItemFactoryInterface $factory,
     ) {
         $this->checkers = [];
-        $this->logger = new NullLogger();
+        $this->logger = new StreamLogger('php://stdout');
         $this->keepaliveCheckers = [];
 
         $this->minimumIdle = $this->size;

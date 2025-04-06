@@ -476,7 +476,7 @@ class Pool implements PoolInterface, PoolControlInterface
         $attempts = 0;
         $workerId = getmypid();
 
-        $this->logger->info(sprintf('[Worker %s] [Pool %s] Starting warmup. Target: %d, Current Size: %d', $workerId, $this->getName(), $target, $this->itemWrapperCount));
+        logger()->debug(sprintf('[Worker %s] [Pool %s] Starting warmup. Target: %d, Current Size: %d', $workerId, $this->getName(), $target, $this->itemWrapperCount));
 
         // Loop until the current size reaches the target, or we exceed max attempts
         while ($this->itemWrapperCount < $target && $attempts < $maxAttempts) {
@@ -485,22 +485,22 @@ class Pool implements PoolInterface, PoolControlInterface
                 // Call increaseItems to create *one* connection wrapper and item
                 if ($this->increaseItems()) {
                     $createdInWarmup++;
-                    $this->logger->debug(sprintf('[Worker %s] [Pool %s] Warmup: Increased items. Current size: %d', $workerId, $this->getName(), $this->itemWrapperCount));
+                    logger()->debug(sprintf('[Worker %s] [Pool %s] Warmup: Increased items. Current size: %d', $workerId, $this->getName(), $this->itemWrapperCount));
                     // Optional small delay to stagger connection attempts across workers/coroutines
                     Coroutine::sleep(0.01); // Sleep 10ms
                 } else {
                     // increaseItems returns false if pool is full or push fails, unlikely here but good to log
-                    $this->logger->warning(sprintf('[Worker %s] [Pool %s] Warmup: increaseItems returned false. Current size: %d', $workerId, $this->getName(), $this->itemWrapperCount));
+                    logger()->warning(sprintf('[Worker %s] [Pool %s] Warmup: increaseItems returned false. Current size: %d', $workerId, $this->getName(), $this->itemWrapperCount));
                     Coroutine::sleep(0.1); // Wait longer if push failed
                 }
             } catch (Throwable $e) {
                 // Log creation errors aggressively during warmup
-                $this->logger->error(sprintf('[Worker %s] [Pool %s] Warmup Error: Failed to create connection (%s). Current size: %d. Error: %s', $workerId, $this->getName(), get_class($e), $this->itemWrapperCount, $e->getMessage()), ['exception' => $e]);
+                logger()->error(sprintf('[Worker %s] [Pool %s] Warmup Error: Failed to create connection (%s). Current size: %d. Error: %s', $workerId, $this->getName(), get_class($e), $this->itemWrapperCount, $e->getMessage()), ['exception' => $e]);
                 // Wait before retrying on error to avoid hammering DB if it's down
                 Coroutine::sleep(0.5); // Sleep 500ms after an error
             }
         }
 
-        $this->logger->info(sprintf('[Worker %s] [Pool %s] Warmup finished. Target: %d, Actual Size: %d, Created: %d, Attempts: %d', $workerId, $this->getName(), $target, $this->itemWrapperCount, $createdInWarmup, $attempts));
+        logger()->debug(sprintf('[Worker %s] [Pool %s] Warmup finished. Target: %d, Actual Size: %d, Created: %d, Attempts: %d', $workerId, $this->getName(), $target, $this->itemWrapperCount, $createdInWarmup, $attempts));
     }
 }

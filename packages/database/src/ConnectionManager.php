@@ -54,9 +54,9 @@ class ConnectionManager
      */
     public function getPool(array $config): PoolInterface
     {
-        $name = getmypid();
-        if (isset($this->pools[$name])) {
-            return $this->pools[$name];
+        $workerId = getmypid();
+        if (isset($this->pools[$workerId])) {
+            return $this->pools[$workerId];
         }
 
         $dsn = sprintf(
@@ -103,10 +103,10 @@ class ConnectionManager
             }
         });
 
-        $poolInstanceName = "pool-{$name}";
+        $poolInstanceName = $config['pool']['pool_name'] . '-' . $workerId ?? 'pool-' . $workerId;
         $pool = $poolFactory->instantiate($poolInstanceName);
 
-        $this->pools[$name] = $pool;
+        $this->pools[$workerId] = $pool;
         $this->logger->debug("Initialized pool: {$poolInstanceName}");
 
         $pool->warmup();
@@ -135,7 +135,7 @@ class ConnectionManager
      */
     public function getConnection(string $name = 'default', array $config = []): PDO
     {
-        $pool = $this->getPool($config, $name); // Ensure pool is initialized
+        $pool = $this->getPool($config);
 
 
         try {
@@ -146,16 +146,5 @@ class ConnectionManager
             $this->logger->error("Timeout borrowing connection from pool: {$name}", ['exception' => $e]);
             throw new RuntimeException("Timeout borrowing connection from pool '$name'", 0, $e);
         }
-    }
-
-    protected function getSpecificConfig(string $name): array
-    {
-        if (isset($this->globalDbConfig['connections'][$name])) {
-            return array_merge($this->globalDbConfig['connections']['default'] ?? [], $this->globalDbConfig['connections'][$name]);
-        }
-        if (isset($this->globalDbConfig['environments'][$name])) { // Compatibility
-            return array_merge($this->globalDbConfig['environments']['default'] ?? [], $this->globalDbConfig['environments'][$name]);
-        }
-        throw new RuntimeException("Configuration for connection '$name' not found.");
     }
 }

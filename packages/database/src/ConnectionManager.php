@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Ody\DB;
 
 use Ody\ConnectionPool\ConnectionPoolFactory;
+use Ody\ConnectionPool\KeepaliveCheckerInterface;
 use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
 use Ody\ConnectionPool\Pool\PoolInterface;
 use PDO;
@@ -52,10 +53,11 @@ class ConnectionManager
      * @param string $name
      * @return PoolInterface
      */
-    public function getPool(array $config, string $name = 'default'): PoolInterface
+    public function getPool(array $config): PoolInterface
     {
-        if (isset($this->pools[$name])) {
-            return $this->pools[$name];
+        $workerId = getmypid();
+        if (isset($this->pools[$workerId])) {
+            return $this->pools[$workerId];
         }
 
         $dsn = sprintf(
@@ -71,7 +73,7 @@ class ConnectionManager
 
         // Create a pool with multiple connections per worker
         $poolFactory = ConnectionPoolFactory::create(
-            size: $connectionsPerWorker,
+            size: (int)$connectionsPerWorker,
             factory: new PDOConnectionFactory(
                 dsn: $dsn,
                 username: $config['username'] ?? '',
@@ -93,6 +95,38 @@ class ConnectionManager
         $poolFactory->setAutoReturn(true);
         $poolFactory->setBindToCoroutine(true);
 
+        $poolFactory->addKeepaliveChecker(
+            new class ($config) implements KeepaliveCheckerInterface {
+
+                private array $config;
+
+                public function __construct($config)
+                {
+                    $this->config = $config;
+                }
+
+                public function check(mixed $connection): bool
+                {
+                    if (!$connection instanceof \PDO) return false;
+                    try {
+                        $connection->getAttribute(\PDO::ATTR_SERVER_INFO);
+                        return true;
+                    } catch (\Throwable) {
+                        return false; // Connection is likely dead
+                    }
+                }
+
+                public function getIntervalSec(): float
+                {
+                    if (isset($this->config['pool']['keep_alive_check_interval'])) {
+                        return (float)$this->config['pool']['keep_alive_check_interval'];
+                    }
+                    // Has to be lower than MySQL wait_timeout
+                    return 60;
+                }
+            },
+        );
+
         // Add a connection checker to verify connections aren't in a transaction
         $poolFactory->addConnectionChecker(function (PDO $connection): bool {
             try {
@@ -102,11 +136,14 @@ class ConnectionManager
             }
         });
 
-        $poolInstanceName = "pool-{$name}";
+
+        $poolInstanceName = $config['pool']['pool_name'] . '-' . $workerId ?? 'pool-' . $workerId;
         $pool = $poolFactory->instantiate($poolInstanceName);
 
-        $this->pools[$name] = $pool;
+        $this->pools[$workerId] = $pool;
         $this->logger->debug("Initialized pool: {$poolInstanceName}");
+
+        $pool->warmup();
 
         return $pool;
     }
@@ -132,7 +169,7 @@ class ConnectionManager
      */
     public function getConnection(string $name = 'default', array $config = []): PDO
     {
-        $pool = $this->getPool($config, $name); // Ensure pool is initialized
+        $pool = $this->getPool($config);
 
 
         try {
@@ -143,16 +180,5 @@ class ConnectionManager
             $this->logger->error("Timeout borrowing connection from pool: {$name}", ['exception' => $e]);
             throw new RuntimeException("Timeout borrowing connection from pool '$name'", 0, $e);
         }
-    }
-
-    protected function getSpecificConfig(string $name): array
-    {
-        if (isset($this->globalDbConfig['connections'][$name])) {
-            return array_merge($this->globalDbConfig['connections']['default'] ?? [], $this->globalDbConfig['connections'][$name]);
-        }
-        if (isset($this->globalDbConfig['environments'][$name])) { // Compatibility
-            return array_merge($this->globalDbConfig['environments']['default'] ?? [], $this->globalDbConfig['environments'][$name]);
-        }
-        throw new RuntimeException("Configuration for connection '$name' not found.");
     }
 }

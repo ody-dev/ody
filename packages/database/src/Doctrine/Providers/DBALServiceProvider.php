@@ -20,7 +20,12 @@ class DBALServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        // No initialization needed here - will be done on first use
+        $config = config('database.environments')[config('app.environment', 'local')];
+        if ($config['pool']['enabled']) {
+            $pool = $this->container->make(ConnectionManager::class);
+            $pool = $pool->getPool($config);
+            $pool->warmup();
+        }
     }
 
     public function register(): void
@@ -47,7 +52,7 @@ class DBALServiceProvider extends ServiceProvider
                 'host' => $config['host'] ?? 'localhost',
                 'port' => $config['port'] ?? 3306,
                 'charset' => $config['charset'] ?? 'utf8mb4',
-                'poolName' => 'dbal-default-' . getmypid(), // Use a distinct pool name for DBAL
+                'poolName' => $config['pool_name'] ?? 'default-' . getmypid(),
                 'connectionManager' => $app->make(ConnectionManager::class),
                 'pool' => $config['pool']
             ];
@@ -58,26 +63,26 @@ class DBALServiceProvider extends ServiceProvider
         });
 
         // Register a reusable factory function for creating DBAL connections
-        $this->container->bind('db.dbal.factory', function ($app) {
-            return function (string $connectionName = 'default') use ($app) {
-                $config = config('database.environments')[$connectionName] ??
-                    config('database.environments')[config('app.environment', 'local')];
-
-                $connectionParams = [
-                    'driverClass' => DBALMysQLDriver::class,
-                    'dbname' => $config['database'] ?? $config['db_name'] ?? '',
-                    'user' => $config['username'] ?? '',
-                    'password' => $config['password'] ?? '',
-                    'host' => $config['host'] ?? 'localhost',
-                    'port' => $config['port'] ?? 3306,
-                    'charset' => $config['charset'] ?? 'utf8mb4',
-                    'poolName' => $connectionName, // Use distinct pool names for different connections
-                ];
-
-                $configuration = new Configuration();
-
-                return DriverManager::getConnection($connectionParams, $configuration);
-            };
-        });
+//        $this->container->bind('db.dbal.factory', function ($app) {
+//            return function (string $connectionName = 'default') use ($app) {
+//                $config = config('database.environments')[$connectionName] ??
+//                    config('database.environments')[config('app.environment', 'local')];
+//
+//                $connectionParams = [
+//                    'driverClass' => DBALMysQLDriver::class,
+//                    'dbname' => $config['database'] ?? $config['db_name'] ?? '',
+//                    'user' => $config['username'] ?? '',
+//                    'password' => $config['password'] ?? '',
+//                    'host' => $config['host'] ?? 'localhost',
+//                    'port' => $config['port'] ?? 3306,
+//                    'charset' => $config['charset'] ?? 'utf8mb4',
+//                    'poolName' => $config['pool_name'] ?? 'default-' . getmypid(),
+//                ];
+//
+//                $configuration = new Configuration();
+//
+//                return DriverManager::getConnection($connectionParams, $configuration);
+//            };
+//        });
     }
 }

@@ -10,14 +10,14 @@ return [
     'channels' => [
         // Example Monolog stdout config
         'stdout' => [
-            'driver' => 'monolog', // Must be 'monolog', 'stack', or 'null'
+            'driver' => 'monolog',
             'handler' => StreamHandler::class,
-            'with' => [ // Arguments for Handler constructor
+            'with' => [
                 'stream' => 'php://stdout',
             ],
-            'level' => env('LOG_LEVEL', LogLevel::DEBUG), // Min level for this handler
-            'formatter' => ConsoleExceptionFormatter::class, // Optional: Custom formatter
-            'formatter_with' => [ // Arguments for Formatter constructor
+            'level' => env('LOG_LEVEL', LogLevel::DEBUG),
+            'formatter' => ConsoleExceptionFormatter::class,
+            'formatter_with' => [
                 'format' => "[%datetime%] [%level_name%] %channel%: %message% %context% %extra%\n",
                 'dateFormat' => 'Y-m-d H:i:s',
                 'allowInlineLineBreaks' => true,
@@ -44,8 +44,8 @@ return [
         // Example Stack config
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single', 'stdout'], // Channels to include in the stack
-            'ignore_exceptions' => false, // Whether errors creating sub-channels stop the stack
+            'channels' => ['single', 'stdout'],
+            'ignore_exceptions' => false,
         ],
     ],
 

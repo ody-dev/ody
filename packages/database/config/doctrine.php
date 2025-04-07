@@ -17,7 +17,7 @@ return [
     |
     */
     'entity_paths' => [
-        app_path('Entities'),
+        base_path('app/Entities'),
     ],
 
     /*

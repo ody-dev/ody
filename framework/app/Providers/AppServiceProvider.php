@@ -10,9 +10,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Register user repository
-        $this->container->singleton('user.repository', function () {
-            return new UserRepository();
-        });
+        $this->container->bind(UserRepository::class);
     }
 
     public function boot(): void

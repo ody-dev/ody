@@ -54,7 +54,7 @@ return [
          * SWOOLE_HOOK_ALL ^ SWOOLE_HOOK_FILE ^ SWOOLE_HOOK_STDIO - Enable all runtime hooks except file and stdio hooks
          * 0 - Disable runtime hooks
          */
-        'hook_flags' => SWOOLE_HOOK_ALL,
+        'hook_flags' => SWOOLE_HOOK_ALL ^ SWOOLE_HOOK_TCP,
     ],
 
     'runtime' => [

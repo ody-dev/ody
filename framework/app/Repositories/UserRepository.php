@@ -2,15 +2,22 @@
 
 namespace App\Repositories;
 
-use App\Models\User;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception;
 
 class UserRepository
 {
+    public function __construct(
+        private Connection $dbConnection
+    )
+    {
+    }
     public function findByUsername(string $username)
     {
         // First try by username
-        $user = User::where('username', $username)->first();
+        $user = $this->dbConnection->fetchAllAssociative(
+            "SELECT * FROM users"
+        );
 
         if (!$user) {
             return false;
@@ -80,8 +87,13 @@ class UserRepository
         return false;
     }
 
+    /**
+     * @throws Exception
+     */
     public function getAll()
     {
-        return User::get();
+        return $this->dbConnection->fetchOne(
+            "SELECT * FROM users WHERE id = ?", [100]
+        );
     }
 }

@@ -10,18 +10,23 @@
 namespace Ody\DB\Doctrine\Providers;
 
 use Doctrine\DBAL\Configuration;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Ody\DB\ConnectionManager;
 use Ody\DB\Doctrine\DBALMysQLDriver;
 use Ody\Foundation\Providers\ServiceProvider;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
 class DBALServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        $config = config('database.environments')[config('app.environment', 'local')];
+        $config = $this->container->get('config')->get('database.environments', []);
+        $config = $config[config('app.environment', 'local')];
+
         if ($config['pool']['enabled']) {
+            /** @var ConnectionManager $connectionManager */
             $pool = $this->container->make(ConnectionManager::class);
             $pool = $pool->getPool($config);
             $pool->warmup();
@@ -31,58 +36,49 @@ class DBALServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->container->singleton(ConnectionManager::class, function ($app) {
-            // Inject necessary dependencies from the container
-            $config = $app->make('config')->get('database'); // Get database config
-            $logger = $app->make(LoggerInterface::class); // Get logger
-            return new ConnectionManager($config, $logger);
+            return new ConnectionManager(
+                $app->get('config')->get('database'),
+                $app->get(LoggerInterface::class)
+            );
         });
 
-//        $this->container->bind(DBALMysQLDriver::class, function($app) {
-//            return new DBALMysQLDriver($app->make(ConnectionManager::class));
-//        });
+        $this->container->bind('dbal.connection.factory', function (ContainerInterface $container) {
+            return function (string $name = 'local') use ($container) {
+                $config = $this->container->get('config');
+                $connectionConfig = $config->get('database.environments', [])[$name] ?? null;
 
-        $this->container->bind('db.dbal', function ($app) {
-            $config = config('database.environments')[config('app.environment', 'local')];
+                if (!$connectionConfig) {
+                    throw new \InvalidArgumentException("DBAL connection configuration '{$name}' not found.");
+                }
 
-            $connectionParams = [
-                'driverClass' => DBALMysQLDriver::class,
-                'dbname' => $config['database'] ?? $config['db_name'] ?? '',
-                'user' => $config['username'] ?? '',
-                'password' => $config['password'] ?? '',
-                'host' => $config['host'] ?? 'localhost',
-                'port' => $config['port'] ?? 3306,
-                'charset' => $config['charset'] ?? 'utf8mb4',
-                'poolName' => $config['pool_name'] ?? 'default-' . getmypid(),
-                'connectionManager' => $app->make(ConnectionManager::class),
-                'pool' => $config['pool']
-            ];
+                $connectionParams = [
+                    'driverClass' => DBALMysQLDriver::class,
+                    'dbname' => $connectionConfig['database'] ?? $connectionConfig['db_name'] ?? '',
+                    'user' => $connectionConfig['username'] ?? '',
+                    'password' => $connectionConfig['password'] ?? '',
+                    'host' => $connectionConfig['host'] ?? 'localhost',
+                    'port' => $connectionConfig['port'] ?? 3306,
+                    'charset' => $connectionConfig['charset'] ?? 'utf8mb4',
+                    'poolName' => $connectionConfig['pool']['pool_name'] ?? 'default-' . getmypid(),
+                    'connectionManager' => $container->make(ConnectionManager::class),
+                    'pool' => $connectionConfig['pool']
+                ];
 
-            $configuration = new Configuration();
+                $configuration = new Configuration();
 
-            return DriverManager::getConnection($connectionParams, $configuration);
+                return DriverManager::getConnection($connectionParams, $configuration);
+            };
         });
 
-        // Register a reusable factory function for creating DBAL connections
-//        $this->container->bind('db.dbal.factory', function ($app) {
-//            return function (string $connectionName = 'default') use ($app) {
-//                $config = config('database.environments')[$connectionName] ??
-//                    config('database.environments')[config('app.environment', 'local')];
-//
-//                $connectionParams = [
-//                    'driverClass' => DBALMysQLDriver::class,
-//                    'dbname' => $config['database'] ?? $config['db_name'] ?? '',
-//                    'user' => $config['username'] ?? '',
-//                    'password' => $config['password'] ?? '',
-//                    'host' => $config['host'] ?? 'localhost',
-//                    'port' => $config['port'] ?? 3306,
-//                    'charset' => $config['charset'] ?? 'utf8mb4',
-//                    'poolName' => $config['pool_name'] ?? 'default-' . getmypid(),
-//                ];
-//
-//                $configuration = new Configuration();
-//
-//                return DriverManager::getConnection($connectionParams, $configuration);
-//            };
-//        });
+        $this->container->bind(Connection::class, function (ContainerInterface $app) {
+            // Get the factory we registered above
+            $factory = $app->get('dbal.connection.factory');
+            // Call the factory to get the default connection instance.
+            // Because this binding is scoped, this resolution happens per request/coroutine context.
+            return $factory('local'); // Resolve the 'default' connection
+        });
+
+        // Optional: Alias for convenience, still resolves the scoped binding above.
+        $this->container->alias(Connection::class, 'db.dbal');
     }
 }

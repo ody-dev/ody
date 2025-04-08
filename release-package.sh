@@ -29,7 +29,7 @@ git add packages/$PACKAGE/CHANGELOG.md
 git commit -m "chore(release): bump $PACKAGE to version $VERSION"
 
 # Create a tag
-git tag $PACKAGE-v$VERSION
+git tag $VERSION
 
 # Push changes
 git push

@@ -7,7 +7,7 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\Foundation\Middleware\Attributes;
+namespace Ody\Middleware\Attributes;
 
 use Attribute;
 

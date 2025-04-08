@@ -7,7 +7,7 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\Foundation\Middleware;
+namespace Ody\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

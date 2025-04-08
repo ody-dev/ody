@@ -30,6 +30,7 @@ jobs:
           - { name: "connection-pool", path: "packages/connection-pool" }
           - { name: "amqp", path: "packages/amqp" }
           - { name: "cqrs", path: "packages/cqrs" }
+          - { name: "middleware", path: "packages/middleware" }
 
     steps:
       - uses: actions/checkout@v3

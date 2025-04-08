@@ -1,23 +1,14 @@
 <?php
-/*
- *  This file is part of ODY framework.
- *
- *  @link     https://ody.dev
- *  @document https://ody.dev/docs
- *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
- */
 
-namespace Ody\Foundation\Providers;
+namespace Ody\Middleware\Providers;
 
 use Ody\Container\Container;
-use Ody\Foundation\Middleware\MiddlewareRegistry;
-use Ody\Foundation\MiddlewareManager;
+use Ody\Foundation\Providers\ServiceProvider;
+use Ody\Middleware\MiddlewareManager;
+use Ody\Middleware\MiddlewareRegistry;
 use Ody\Support\Config;
 use Psr\Log\LoggerInterface;
 
-/**
- * Service provider for middleware
- */
 class MiddlewareServiceProvider extends ServiceProvider
 {
     /**
@@ -44,7 +35,7 @@ class MiddlewareServiceProvider extends ServiceProvider
             $manager = new MiddlewareManager($container, $logger);
 
             // Load configuration here - ONLY ONCE
-            $middlewareConfig = $config->get('app.middleware', []);
+            $middlewareConfig = $config->get('middleware', []);
             if (is_array($middlewareConfig)) {
                 $manager->registerFromConfig($middlewareConfig);
             }

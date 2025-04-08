@@ -7,17 +7,17 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\Foundation;
+namespace Ody\Middleware;
 
 use Ody\Container\Container;
-use Ody\Foundation\Middleware\MiddlewareRegistry;
-use Ody\Foundation\Middleware\TerminatingMiddlewareInterface;
+use Ody\Container\Contracts\BindingResolutionException;
 use Ody\Swoole\Coroutine\ContextManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use function Ody\Foundation\gettype;
 
 class MiddlewareManager
 {
@@ -54,6 +54,7 @@ class MiddlewareManager
      * Get the middleware registry
      *
      * @return MiddlewareRegistry
+     * @throws BindingResolutionException
      */
     public function getRegistry(): MiddlewareRegistry
     {
@@ -71,6 +72,7 @@ class MiddlewareManager
      *
      * @param array $config
      * @return self
+     * @throws BindingResolutionException
      */
     public function registerFromConfig(array $config): self
     {
@@ -85,8 +87,9 @@ class MiddlewareManager
      * @param string $path
      * @param mixed $middleware
      * @return self
+     * @throws BindingResolutionException
      */
-    public function addForRoute(string $method, string $path, $middleware): self
+    public function addForRoute(string $method, string $path, mixed $middleware): self
     {
         $this->getRegistry()->addForRoute($method, $path, $middleware);
         return $this;
@@ -98,6 +101,7 @@ class MiddlewareManager
      * @param string $method
      * @param string $path
      * @return array
+     * @throws BindingResolutionException
      */
     public function getStackForRoute(string $method, string $path): array
     {
@@ -109,15 +113,16 @@ class MiddlewareManager
      *
      * @param string $method HTTP method
      * @param string $path Route path
-     * @param string|object|null $controller Controller class or instance
+     * @param object|string|null $controller Controller class or instance
      * @param string|null $action Controller method name
      * @return array
+     * @throws BindingResolutionException
      */
     public function getMiddlewareForRoute(
-        string $method,
-        string $path,
-                $controller = null,
-        ?string $action = null
+        string        $method,
+        string        $path,
+        object|string $controller = null,
+        ?string       $action = null
     ): array {
         return $this->getRegistry()->getMiddlewareForRoute($method, $path, $controller, $action);
     }
@@ -127,8 +132,9 @@ class MiddlewareManager
      *
      * @param mixed $middleware
      * @return MiddlewareInterface
+     * @throws BindingResolutionException
      */
-    public function resolve($middleware): MiddlewareInterface
+    public function resolve(mixed $middleware): MiddlewareInterface
     {
         return $this->getRegistry()->resolve($middleware);
     }

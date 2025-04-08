@@ -7,12 +7,12 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\Foundation\Middleware;
+namespace Ody\Middleware;
 
 use Ody\Container\Container;
-use Ody\Foundation\Middleware\Adapters\CallableMiddlewareAdapter;
-use Ody\Foundation\Middleware\Attributes\Middleware;
-use Ody\Foundation\Middleware\Attributes\MiddlewareGroup;
+use Ody\Middleware\Adapters\CallableMiddlewareAdapter;
+use Ody\Middleware\Attributes\Middleware;
+use Ody\Middleware\Attributes\MiddlewareGroup;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -196,15 +196,15 @@ class MiddlewareRegistry
      *
      * @param string $method HTTP method
      * @param string $path Route path
-     * @param string|object|null $controller Controller class or instance
+     * @param object|string|null $controller Controller class or instance
      * @param string|null $action Controller method name
      * @return array Combined middleware list
      */
     public function getMiddlewareForRoute(
-        string  $method,
-        string  $path,
-                $controller = null,
-        ?string $action = null
+        string        $method,
+        string        $path,
+        object|string $controller = null,
+        ?string       $action = null
     ): array
     {
         // Get route middleware

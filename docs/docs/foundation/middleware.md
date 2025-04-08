@@ -167,8 +167,8 @@ You can apply middleware directly to controllers or methods using attributes:
 
 namespace App\Controllers;
 
-use Ody\Foundation\Middleware\Attributes\Middleware;
-use Ody\Foundation\Middleware\Attributes\MiddlewareGroup;
+use Ody\Middleware\Attributes\Middleware;
+use Ody\Middleware\Attributes\MiddlewareGroup;
 
 #[Middleware(\App\Middleware\AuthMiddleware::class)]
 class UserController
@@ -265,7 +265,7 @@ middleware that runs after the response is sent:
 
 namespace App\Middleware;
 
-use Ody\Foundation\Middleware\TerminatingMiddlewareInterface;
+use Ody\Middleware\TerminatingMiddlewareInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

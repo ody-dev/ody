@@ -12,11 +12,10 @@ namespace Tests\Unit\Foundation\Middleware;
 use Ody\Container\Container;
 use Ody\Foundation\Http\Request;
 use Ody\Foundation\Http\Response;
-use Ody\Foundation\Middleware\AuthMiddleware;
-use Ody\Foundation\Middleware\CorsMiddleware;
-use Ody\Foundation\Middleware\JsonBodyParserMiddleware;
-use Ody\Foundation\Middleware\MiddlewareRegistry;
-use Ody\Foundation\Middleware\ThrottleMiddleware;
+use Ody\Middleware\CorsMiddleware;
+use Ody\Middleware\JsonBodyParserMiddleware;
+use Ody\Middleware\MiddlewareRegistry;
+use Ody\Middleware\ThrottleMiddleware;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -24,7 +23,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\NullLogger;
 
-class MiddlewareRegistryTest extends TestCase
+class MiddlewareTest extends TestCase
 {
     /**
      * @var MiddlewareRegistry

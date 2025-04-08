@@ -12,7 +12,8 @@
   ],
   "require": {
     "php": ">=8.3",
-    "ody/foundation": "^0.2.0"
+    "ody/foundation": "^0.2.0",
+    "ody/swoole": "^0.1.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^9.6",

@@ -4,4 +4,4 @@ vendor
 framework/vendor/*
 framework/.env
 framework/.idea
-framework/storage/logs
+framework/storage/*

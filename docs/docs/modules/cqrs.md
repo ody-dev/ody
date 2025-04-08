@@ -1,5 +1,6 @@
-# CQRS
-
+---
+title: CQRS
+---
 ODY CQRS provides a clean separation between commands (which modify state) and queries (which retrieve data), enabling
 scalable and maintainable application architecture.
 
@@ -16,8 +17,6 @@ Key features:
 ```bash
 composer require ody/cqrs
 ```
-
-To enable async functionality install ody/amqp, see the amqp section in the sidebar.
 
 ## Introduction
 
@@ -159,31 +158,6 @@ return [
         ],
     ],
 ];
-```
-
-### Configure Service providers
-
-Register the required service providers in your config/app.php:
-
-```php
-
-'providers' => [
-    'http' => [
-        // ... other providers
-        \Ody\CQRS\Providers\CQRSServiceProvider::class,
-
-        // ... for async handling
-//        \Ody\AMQP\Providers\AMQPServiceProvider::class,
-//        \Ody\CQRS\Providers\CQRSServiceProvider::class, // must me registered after AMQPServiceProvider!
-//        \Ody\CQRS\Providers\AsyncMessagingServiceProvider::class,
-    ],
-    // Also for async handling, registers long running background processes
-    'beforeServerStart' => [
-//            \Ody\Process\Providers\ProcessServiceProvider::class,
-//            \Ody\CQRS\Providers\CQRSServiceProvider::class,
-//            \Ody\AMQP\Providers\AMQPServiceProvider::class,
-    ]
-],
 ```
 
 ## Usage
@@ -428,7 +402,7 @@ class TransactionalMiddleware
 }
 ```
 
-<!-- ## API Integration
+## API Integration
 
 The CQRS module can be easily integrated with your API layer to expose commands and queries as RESTful endpoints.
 
@@ -476,9 +450,9 @@ class UserController extends CqrsController
         return $this->query(GetUserByIdQuery::class, $request);
     }
 }
-``` -->
+```
 
-<!-- ### Set Up Middleware
+### Set Up Middleware
 
 ```php
 <?php
@@ -504,4 +478,4 @@ $responseFormattingMiddleware = new ResponseFormattingMiddleware($response);
 // Add middleware to your application
 $app->add($responseFormattingMiddleware);
 $app->add($requestMappingMiddleware);
-``` -->
+```

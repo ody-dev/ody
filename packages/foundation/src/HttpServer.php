@@ -89,12 +89,7 @@ class HttpServer
     {
         $workerPid = getmypid();
 
-        // Remove the container entry for this specific worker from the map
         if (isset(self::$workerApplicationMap[$workerPid])) {
-            // Explicitly unset properties or call destructors if necessary
-            // $container = self::$workerContainerMap[$workerPid];
-            // $container->callDestructorsOrCleanup();
-
             unset(self::$workerApplicationMap[$workerPid]);
         }
     }

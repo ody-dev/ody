@@ -9,13 +9,13 @@
 
 namespace Ody\DB\Doctrine;
 
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\Configuration;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\ORMSetup;
-use Doctrine\ORM\Tools\Setup;
-use Ody\DB\Doctrine\Facades\DBAL;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
@@ -28,11 +28,20 @@ class EntityManagerFactory
     protected ContainerInterface $container;
 
     /**
+     * @var Connection $connection
+     */
+    protected Connection $connection;
+
+    /**
      * @param ContainerInterface $container
      */
-    public function __construct(ContainerInterface $container)
+    public function __construct(
+        ContainerInterface $container,
+        Connection         $connection
+    )
     {
         $this->container = $container;
+        $this->connection = $connection;
     }
 
     /**
@@ -40,18 +49,15 @@ class EntityManagerFactory
      *
      * @param string|null $connectionName
      * @return EntityManagerInterface
-     * @throws \Doctrine\ORM\ORMException
+     * @throws ORMException
      */
     public function create(?string $connectionName = null): EntityManagerInterface
     {
-        // Get connection from DBAL (which is already integrated with the connection pool)
-        $connection = DBAL::connection($connectionName);
-
         // Create configuration
         $config = $this->createConfiguration();
 
         // Create entity manager with the connection and configuration
-        $entityManager = new EntityManager($connection, $config);
+        $entityManager = new EntityManager($this->connection, $config);
 
         // Register event subscribers if enabled
         if (config('doctrine.enable_events', true)) {

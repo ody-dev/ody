@@ -9,8 +9,8 @@
 
 namespace Ody\DB\Doctrine\Providers;
 
+use Doctrine\ORM\EntityManagerInterface;
 use Ody\DB\Doctrine\EntityManagerFactory;
-use Ody\DB\Doctrine\Facades\ORM;
 use Ody\Foundation\Providers\ServiceProvider;
 
 class DoctrineORMServiceProvider extends ServiceProvider
@@ -19,7 +19,7 @@ class DoctrineORMServiceProvider extends ServiceProvider
     {
         // Register EntityManager factory
         $this->container->singleton('db.orm.factory', function ($app) {
-            return new EntityManagerFactory($app);
+            return new EntityManagerFactory($app, $app->get('db.dbal'));
         });
 
         // Register default EntityManager instance
@@ -27,6 +27,8 @@ class DoctrineORMServiceProvider extends ServiceProvider
             $factory = $app->get('db.orm.factory');
             return $factory->create();
         });
+
+        $this->container->alias('db.orm', EntityManagerInterface::class);
 
         // Register entity manager resolver
         $this->container->singleton('db.orm.resolver', function ($app) {
@@ -45,13 +47,8 @@ class DoctrineORMServiceProvider extends ServiceProvider
     {
         // Publish configuration
         $this->publishes([
-            __DIR__ . '/../../config/doctrine.php' => 'doctrine.php'
+            __DIR__ . '/../../../config/doctrine.php' => 'doctrine.php'
         ], 'ody/doctrine');
-
-        // Initialize ORM facade
-        if (class_exists('Ody\DB\Doctrine\Facades\ORM')) {
-            ORM::setResolver($this->container->get('db.orm.resolver'));
-        }
 
         // Register console commands for development/testing environment
         if ($this->isRunningInConsole()) {

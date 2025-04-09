@@ -16,8 +16,8 @@
  */
 
 use Ody\Container\Container;
-use Ody\Foundation\Logger;
-use Ody\LoggerLogManager;
+use Ody\Logger\Log;
+use Ody\Logger\LogManager;
 use Ody\Support\Config;
 use Ody\Support\Env;
 use Psr\Log\LoggerInterface;

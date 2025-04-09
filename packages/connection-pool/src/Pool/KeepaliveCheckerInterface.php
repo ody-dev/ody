@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Ody\ConnectionPool;
 
+use PDO;
+
 /**
- * @template TConnection of object
+ * @template TItem of PDO
  */
 interface KeepaliveCheckerInterface
 {
     /**
-     * @param  TConnection|null  $connection
+     * @param PDO|null $connection
+     * @return bool
      */
-    public function check(mixed $connection): bool;
+    public function check(?PDO $connection): bool;
 
     public function getIntervalSec(): float;
 }

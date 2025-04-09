@@ -26,8 +26,7 @@ class DBALServiceProvider extends ServiceProvider
         $config = $config[config('app.environment', 'local')];
 
         if ($config['pool']['enabled']) {
-            /** @var ConnectionManager $connectionManager */
-            $pool = $this->container->make(ConnectionManager::class);
+            $pool = $this->container->get(ConnectionManager::class);
             $pool = $pool->getPool($config);
             $pool->warmup();
         }
@@ -60,7 +59,7 @@ class DBALServiceProvider extends ServiceProvider
                     'port' => $connectionConfig['port'] ?? 3306,
                     'charset' => $connectionConfig['charset'] ?? 'utf8mb4',
                     'poolName' => $connectionConfig['pool']['pool_name'] ?? 'default-' . getmypid(),
-                    'connectionManager' => $container->make(ConnectionManager::class),
+                    'connectionManager' => $container->get(ConnectionManager::class),
                     'pool' => $connectionConfig['pool']
                 ];
 

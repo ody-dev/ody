@@ -49,13 +49,13 @@ class ConnectionManager
      * Initialize a connection pool for the given configuration
      *
      * @param array $config
-     * @param string $name
      * @return PoolInterface
      */
     public function getPool(array $config): PoolInterface
     {
-        $workerId = getmypid();
-        if (isset($this->pools[$workerId])) {
+        $pid = getmypid();
+        $workerId = (string)$pid;
+        if ($pid !== false && isset($this->pools[$workerId])) {
             return $this->pools[$workerId];
         }
 
@@ -94,37 +94,9 @@ class ConnectionManager
         $poolFactory->setAutoReturn(true);
         $poolFactory->setBindToCoroutine(true);
 
-//        $poolFactory->addKeepaliveChecker(
-//            new class ($config) implements KeepaliveCheckerInterface {
-//
-//                private array $config;
-//
-//                public function __construct($config)
-//                {
-//                    $this->config = $config;
-//                }
-//
-//                public function check(mixed $connection): bool
-//                {
-//                    if (!$connection instanceof \PDO) return false;
-//                    try {
-//                        $connection->getAttribute(\PDO::ATTR_SERVER_INFO);
-//                        return true;
-//                    } catch (\Throwable) {
-//                        return false; // Connection is likely dead
-//                    }
-//                }
-//
-//                public function getIntervalSec(): float
-//                {
-//                    if (isset($this->config['pool']['keep_alive_check_interval'])) {
-//                        return (float)$this->config['pool']['keep_alive_check_interval'];
-//                    }
-//                    // Has to be lower than MySQL wait_timeout
-//                    return 60;
-//                }
-//            },
-//        );
+        $poolFactory->addKeepaliveChecker(
+            new \Ody\ConnectionPool\Pool\KeepAliveChecker($config)
+        );
 
         // Add a connection checker to verify connections aren't in a transaction
         $poolFactory->addConnectionChecker(function (PDO $connection): bool {
@@ -136,7 +108,7 @@ class ConnectionManager
         });
 
 
-        $poolInstanceName = $config['pool']['pool_name'] . '-' . $workerId ?? 'pool-' . $workerId;
+        $poolInstanceName = $config['pool']['pool_name'] . '-' . $workerId;
         $pool = $poolFactory->instantiate($poolInstanceName);
 
         $this->pools[$workerId] = $pool;

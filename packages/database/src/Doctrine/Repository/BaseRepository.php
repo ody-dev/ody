@@ -11,8 +11,9 @@ namespace Ody\DB\Doctrine\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\Exception\ORMException;
+use Doctrine\ORM\OptimisticLockException;
 use Doctrine\ORM\QueryBuilder;
-use Ody\DB\Doctrine\Facades\ORM;
 
 /**
  * Base repository for all entity repositories
@@ -25,6 +26,12 @@ abstract class BaseRepository
      * @var string
      */
     protected string $entityClass;
+
+    public function __construct(
+        protected EntityManagerInterface $entityManager
+    )
+    {
+    }
 
     /**
      * Create a new query builder
@@ -41,11 +48,11 @@ abstract class BaseRepository
     /**
      * Get the repository for this entity
      *
-     * @return EntityRepository<T>
+     * @return EntityRepository<object>
      */
     protected function getRepository(): EntityRepository
     {
-        return $this->getEntityManager()->getRepository($this->entityClass);
+        return $this->entityManager->getRepository($this->entityClass);
     }
 
     /**
@@ -55,18 +62,20 @@ abstract class BaseRepository
      */
     protected function getEntityManager(): EntityManagerInterface
     {
-        return ORM::entityManager();
+        return $this->entityManager;
     }
 
     /**
      * Find an entity by its primary key
      *
-     * @param mixed $id
-     * @return T|null
+     * @param int $id
+     * @return object|null
+     * @throws ORMException
+     * @throws OptimisticLockException
      */
-    public function find($id): ?object
+    public function find(int $id): ?object
     {
-        return $this->getRepository()->find($id);
+        return $this->entityManager->find($this->entityClass, $id);
     }
 
     /**
@@ -98,7 +107,7 @@ abstract class BaseRepository
      *
      * @param array $criteria
      * @param array|null $orderBy
-     * @return T|null
+     * @return object|null
      */
     public function findOneBy(array $criteria, ?array $orderBy = null): ?object
     {
@@ -108,7 +117,7 @@ abstract class BaseRepository
     /**
      * Persist an entity
      *
-     * @param T $entity
+     * @param object $entity
      * @param bool $flush
      * @return void
      */
@@ -124,13 +133,13 @@ abstract class BaseRepository
     /**
      * Remove an entity
      *
-     * @param T $entity
+     * @param object $entity
      * @param bool $flush
      * @return void
      */
     public function remove(object $entity, bool $flush = true): void
     {
-        $this->getEntityManager()->remove($entity);
+        $this->entityManager->remove($entity);
 
         if ($flush) {
             $this->getEntityManager()->flush();

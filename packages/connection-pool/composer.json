@@ -11,6 +11,7 @@
   ],
   "require": {
     "ext-swoole": "^6.0",
+    "ext-pdo": "*",
     "psr/log": "^3.0"
   },
   "require-dev": {

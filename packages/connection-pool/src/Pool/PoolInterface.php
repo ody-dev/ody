@@ -36,4 +36,6 @@ interface PoolInterface
      * }
      */
     public function stats(): array;
+
+    public function warmup(): void;
 }

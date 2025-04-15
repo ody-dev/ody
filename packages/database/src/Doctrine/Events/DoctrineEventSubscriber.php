@@ -10,8 +10,11 @@
 namespace Ody\DB\Doctrine\Events;
 
 use Doctrine\Common\EventSubscriber;
+use Doctrine\ORM\Event\OnFlushEventArgs;
+use Doctrine\ORM\Event\PreFlushEventArgs;
 use Doctrine\ORM\Events;
 use Doctrine\Persistence\Event\LifecycleEventArgs;
+use Doctrine\Persistence\ObjectManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -49,7 +52,7 @@ class DoctrineEventSubscriber implements EventSubscriber
     /**
      * Called after an entity is persisted to the database
      *
-     * @param LifecycleEventArgs $args
+     * @param LifecycleEventArgs<ObjectManager> $args
      * @return void
      */
     public function postPersist(LifecycleEventArgs $args): void
@@ -58,7 +61,7 @@ class DoctrineEventSubscriber implements EventSubscriber
         $entityClass = get_class($entity);
 
         // Log the entity creation
-        $this->logger->info("Entity created: {$entityClass}", [
+        $this->logger->info("Entity created: $entityClass", [
             'entity_id' => method_exists($entity, 'getId') ? $entity->getId() : null,
             'entity_class' => $entityClass,
         ]);
@@ -67,7 +70,7 @@ class DoctrineEventSubscriber implements EventSubscriber
     /**
      * Called after an entity is updated in the database
      *
-     * @param LifecycleEventArgs $args
+     * @param LifecycleEventArgs<ObjectManager> $args
      * @return void
      */
     public function postUpdate(LifecycleEventArgs $args): void
@@ -76,7 +79,7 @@ class DoctrineEventSubscriber implements EventSubscriber
         $entityClass = get_class($entity);
 
         // Log the entity update
-        $this->logger->info("Entity updated: {$entityClass}", [
+        $this->logger->info("Entity updated: $entityClass", [
             'entity_id' => method_exists($entity, 'getId') ? $entity->getId() : null,
             'entity_class' => $entityClass,
         ]);
@@ -85,7 +88,7 @@ class DoctrineEventSubscriber implements EventSubscriber
     /**
      * Called after an entity is removed from the database
      *
-     * @param LifecycleEventArgs $args
+     * @param LifecycleEventArgs<ObjectManager> $args
      * @return void
      */
     public function postRemove(LifecycleEventArgs $args): void
@@ -94,7 +97,7 @@ class DoctrineEventSubscriber implements EventSubscriber
         $entityClass = get_class($entity);
 
         // Log the entity removal
-        $this->logger->info("Entity removed: {$entityClass}", [
+        $this->logger->info("Entity removed: $entityClass", [
             'entity_id' => method_exists($entity, 'getId') ? $entity->getId() : null,
             'entity_class' => $entityClass,
         ]);
@@ -103,10 +106,10 @@ class DoctrineEventSubscriber implements EventSubscriber
     /**
      * Called when the flush operation is about to execute
      *
-     * @param \Doctrine\ORM\Event\PreFlushEventArgs $args
+     * @param PreFlushEventArgs $args
      * @return void
      */
-    public function preFlush(\Doctrine\ORM\Event\PreFlushEventArgs $args): void
+    public function preFlush(PreFlushEventArgs $args): void
     {
         // You can add pre-flush logic here
     }
@@ -114,10 +117,10 @@ class DoctrineEventSubscriber implements EventSubscriber
     /**
      * Called during the flush operation, before any changes are committed
      *
-     * @param \Doctrine\ORM\Event\OnFlushEventArgs $args
+     * @param OnFlushEventArgs $args
      * @return void
      */
-    public function onFlush(\Doctrine\ORM\Event\OnFlushEventArgs $args): void
+    public function onFlush(OnFlushEventArgs $args): void
     {
         // You can add on-flush logic here
     }

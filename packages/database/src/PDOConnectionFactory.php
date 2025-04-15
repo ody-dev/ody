@@ -23,7 +23,7 @@ readonly class PDOConnectionFactory implements PoolItemFactoryInterface
     ) {
     }
 
-    public function create(): mixed
+    public function create(): PDO
     {
         return new PDO(
             dsn: $this->dsn,

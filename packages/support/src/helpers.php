@@ -17,10 +17,8 @@
 
 use Ody\Container\Container;
 use Ody\Logger\Log;
-use Ody\Logger\LogManager;
 use Ody\Support\Config;
 use Ody\Support\Env;
-use Psr\Log\LoggerInterface;
 
 if (!function_exists('app')) {
     /**
@@ -28,7 +26,7 @@ if (!function_exists('app')) {
      *
      * @param string|null $abstract Service to resolve
      * @param array $parameters Parameters to pass to the resolver
-     * @return mixed|\Ody\Container
+     * @return mixed|Container
      */
     function app($abstract = null, array $parameters = [])
     {
@@ -172,19 +170,6 @@ if (!function_exists('data_get')) {
     }
 }
 
-if (!function_exists('collect')) {
-    /**
-     * Create a basic collection from the given value.
-     *
-     * @param mixed $value
-     * @return array
-     */
-    function collect($value = [])
-    {
-        return is_array($value) ? $value : [$value];
-    }
-}
-
 if (!function_exists('logger')) {
     /**
      * Log a message to the application logs.
@@ -231,25 +216,25 @@ if (!function_exists('database_path')) {
     }
 }
 
-if (!function_exists('logger')) {
-    /**
-     * Get a logger instance or log a message
-     *
-     * @param mixed $message
-     * @param array $context
-     * @param string|null $channel
-     * @return LoggerInterface
-     */
-    function logger($message = null, array $context = [], ?string $channel = null)
-    {
-        /** @var LogManager $logManager */
-        $logManager = app('log');
-        $logger = $channel ? $logManager->channel($channel) : $logManager->channel();
-
-        if (is_null($message)) {
-            return $logger;
-        }
-
-        return $logger->info($message, $context);
-    }
-}
+//if (!function_exists('logger')) {
+//    /**
+//     * Get a logger instance or log a message
+//     *
+//     * @param mixed $message
+//     * @param array $context
+//     * @param string|null $channel
+//     * @return LoggerInterface
+//     */
+//    function logger($message = null, array $context = [], ?string $channel = null): LoggerInterface
+//    {
+//        /** @var LogManager $logManager */
+//        $logManager = app('log');
+//        $logger = $channel ? $logManager->channel($channel) : $logManager->channel();
+//
+//        if (is_null($message)) {
+//            return $logger;
+//        }
+//
+//        return $logger->info($message, $context);
+//    }
+//}

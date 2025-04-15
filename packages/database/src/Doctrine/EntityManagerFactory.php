@@ -10,12 +10,13 @@
 namespace Ody\DB\Doctrine;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\Configuration;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\ORMSetup;
+use Psr\Cache\CacheItemPoolInterface;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
@@ -34,6 +35,7 @@ class EntityManagerFactory
 
     /**
      * @param ContainerInterface $container
+     * @param Connection $connection
      */
     public function __construct(
         ContainerInterface $container,
@@ -49,7 +51,7 @@ class EntityManagerFactory
      *
      * @param string|null $connectionName
      * @return EntityManagerInterface
-     * @throws ORMException
+     * @throws Exception
      */
     public function create(?string $connectionName = null): EntityManagerInterface
     {
@@ -71,6 +73,7 @@ class EntityManagerFactory
      * Create Doctrine ORM configuration
      *
      * @return Configuration
+     * @throws Exception
      */
     protected function createConfiguration(): Configuration
     {
@@ -117,9 +120,9 @@ class EntityManagerFactory
     /**
      * Create cache adapter based on environment
      *
-     * @return \Psr\Cache\CacheItemPoolInterface
+     * @return CacheItemPoolInterface
      */
-    protected function createCache(): \Psr\Cache\CacheItemPoolInterface
+    protected function createCache(): CacheItemPoolInterface
     {
         $cacheType = config('doctrine.cache.type', 'array');
 

@@ -6,9 +6,6 @@ namespace Ody\ConnectionPool;
 
 use PDO;
 
-/**
- * @template TItem of PDO
- */
 interface KeepaliveCheckerInterface
 {
     /**

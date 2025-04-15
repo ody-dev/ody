@@ -28,14 +28,9 @@ class DBALMysQLDriver extends AbstractMySQLDriver
     private string $poolName = 'default';
 
     /**
-     * @var array
-     */
-    private array $config = [];
-
-    /**
      * Connect to the database via the connection pool
      *
-     * @param array $params
+     * @param array<string, mixed> $params
      * @return Connection
      */
     public function connect(array $params): Connection
@@ -46,11 +41,11 @@ class DBALMysQLDriver extends AbstractMySQLDriver
                 'The ConnectionManager instance was not provided in the connection parameters.'
             );
         }
-        /** @var ConnectionManager $connectionManager */
+
         $connectionManager = $params['connectionManager'];
 
         // Convert DBAL params to ConnectionManager config format
-        $this->config = [
+        $config = [
             'driver' => $params['driver'] ?? 'mysql',
             'host' => $params['host'] ?? 'localhost',
             'port' => $params['port'] ?? 3306,
@@ -67,30 +62,30 @@ class DBALMysQLDriver extends AbstractMySQLDriver
         ];
 
         // Check if connection pool is enabled
-        if ($this->config['pool']['enabled']) {
+        if ($config['pool']['enabled']) {
             // Use a custom pool name if provided
             if (isset($params['poolName'])) {
                 $this->poolName = $params['poolName'];
             }
 
             // Initialize the pool if it doesn't exist yet
-            $pdo = $connectionManager->getConnection($this->poolName, $this->config);
+            $pdo = $connectionManager->getConnection($this->poolName, $config);
         } else {
             // Create a direct PDO connection if pool is disabled
             $dsn = sprintf(
                 '%s:host=%s;port=%s;dbname=%s;charset=%s',
-                $this->config['driver'],
-                $this->config['host'],
-                $this->config['port'],
-                $this->config['database'],
-                $this->config['charset']
+                $config['driver'],
+                $config['host'],
+                $config['port'],
+                $config['database'],
+                $config['charset']
             );
 
             $pdo = new PDO(
                 $dsn,
-                $this->config['username'],
-                $this->config['password'],
-                $this->config['options']
+                $config['username'],
+                $config['password'],
+                $config['options']
             );
         }
 

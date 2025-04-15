@@ -23,7 +23,7 @@ use Doctrine\ORM\QueryBuilder;
 abstract class BaseRepository
 {
     /**
-     * @var string
+     * @var class-string<object>
      */
     protected string $entityClass;
 
@@ -81,7 +81,7 @@ abstract class BaseRepository
     /**
      * Find all entities
      *
-     * @return array<T>
+     * @return array<object>
      */
     public function findAll(): array
     {
@@ -91,11 +91,11 @@ abstract class BaseRepository
     /**
      * Find entities by criteria
      *
-     * @param array $criteria
-     * @param array|null $orderBy
+     * @param array<string, mixed> $criteria
+     * @param array<string, 'ASC'|'asc'|'DESC'|'desc'>|null $orderBy
      * @param int|null $limit
      * @param int|null $offset
-     * @return array<T>
+     * @return array<object>
      */
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null, ?int $offset = null): array
     {
@@ -105,8 +105,8 @@ abstract class BaseRepository
     /**
      * Find a single entity by criteria
      *
-     * @param array $criteria
-     * @param array|null $orderBy
+     * @param array<string, mixed> $criteria
+     * @param array<string, string>|null $orderBy
      * @return object|null
      */
     public function findOneBy(array $criteria, ?array $orderBy = null): ?object

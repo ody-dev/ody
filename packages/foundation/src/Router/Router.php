@@ -125,7 +125,7 @@ class Router
      * @param mixed $handler
      * @return Route
      */
-    protected function addRoute(string $method, string $path, $handler): Route
+    protected function addRoute(string $method, string $path, mixed $handler): Route
     {
         // Normalize path
         $path = $this->normalizePath($path);
@@ -188,18 +188,22 @@ class Router
 
                 $controllerClass = null;
                 $action = null;
-                // Extract controller/action strings if it's a string handler
-                if (is_string($handlerIdentifier) && str_contains($handlerIdentifier, '@')) {
-                    list($controllerClass, $action) = explode('@', $handlerIdentifier, 2);
+                if (is_string($handlerIdentifier)) {
+                    if (str_contains($handlerIdentifier, '@')) {
+                        list($controllerClass, $action) = explode('@', $handlerIdentifier, 2);
+                    } elseif (class_exists($handlerIdentifier)) {
+                        $controllerClass = $handlerIdentifier;
+                        $action = '__invoke';
+//                        $handlerIdentifier = $controllerClass;
+                    }
                 }
 
-                // Return the identifier, not a resolved callable
                 return [
                     'status' => 'found',
-                    'handler' => $handlerIdentifier, // Return the string 'Controller@method' or closure
+                    'handler' => $handlerIdentifier,
                     'vars' => $routeParams,
-                    'controller' => $controllerClass, // Extracted class string
-                    'action' => $action // Extracted action string
+                    'controller' => $controllerClass,
+                    'action' => $action
                 ];
         }
         $this->logger->error("Router: Dispatcher returned unexpected status: " . $routeInfo[0]);

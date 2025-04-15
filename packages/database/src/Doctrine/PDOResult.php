@@ -11,16 +11,17 @@ namespace Ody\DB\Doctrine;
 
 use Doctrine\DBAL\Driver\Result;
 use PDO;
+use PDOStatement;
 
 /**
  * Result implementation for DBAL PDO driver
  */
-class PDOResult implements Result
+readonly class PDOResult implements Result
 {
     /**
-     * @param \PDOStatement $statement
+     * @param PDOStatement $statement
      */
-    public function __construct(private readonly \PDOStatement $statement)
+    public function __construct(private PDOStatement $statement)
     {
     }
 
@@ -57,7 +58,7 @@ class PDOResult implements Result
      */
     public function fetchOne(): mixed
     {
-        $value = $this->statement->fetchColumn(0);
+        $value = $this->statement->fetchColumn();
 
         if ($value === false && $this->statement->columnCount() === 0) {
             return false;

@@ -13,16 +13,20 @@ namespace Ody\DB;
 
 use Ody\ConnectionPool\ConnectionPoolFactory;
 use Ody\ConnectionPool\Pool\Exceptions\BorrowTimeoutException;
+use Ody\ConnectionPool\Pool\KeepAliveChecker;
 use Ody\ConnectionPool\Pool\PoolInterface;
 use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
+/**
+ * @template TConnection of object
+ */
 class ConnectionManager
 {
     /**
-     * @var array<string, PoolInterface<PDO>>
+     * @var array<string, PoolInterface<TConnection>
      */
     protected array $pools = [];
 
@@ -31,10 +35,20 @@ class ConnectionManager
      */
     protected string $workerId;
 
+    /**
+     * @var LoggerInterface
+     */
     protected LoggerInterface $logger;
 
+    /**
+     * @var array <string, mixed>
+     */
     protected array $globalDbConfig;
 
+    /**
+     * @param array<string, mixed> $globalDbConfig
+     * @param LoggerInterface $logger
+     */
     public function __construct(array $globalDbConfig, LoggerInterface $logger)
     {
         $this->globalDbConfig = $globalDbConfig; // Store relevant global config if needed
@@ -48,8 +62,8 @@ class ConnectionManager
     /**
      * Initialize a connection pool for the given configuration
      *
-     * @param array $config
-     * @return PoolInterface
+     * @param array<string, mixed> $config
+     * @return PoolInterface<PDO>
      */
     public function getPool(array $config): PoolInterface
     {
@@ -95,7 +109,7 @@ class ConnectionManager
         $poolFactory->setBindToCoroutine(true);
 
         $poolFactory->addKeepaliveChecker(
-            new \Ody\ConnectionPool\Pool\KeepAliveChecker($config)
+            new KeepAliveChecker($config)
         );
 
         // Add a connection checker to verify connections aren't in a transaction
@@ -112,7 +126,7 @@ class ConnectionManager
         $pool = $poolFactory->instantiate($poolInstanceName);
 
         $this->pools[$workerId] = $pool;
-        $this->logger->debug("Initialized pool: {$poolInstanceName}");
+        $this->logger->debug("Initialized pool: $poolInstanceName");
 
         $pool->warmup();
 
@@ -135,7 +149,7 @@ class ConnectionManager
      * Get a PDO connection from the pool
      *
      * @param string $name
-     * @param array $config
+     * @param array<string, int|string|float> $config
      * @return PDO
      */
     public function getConnection(string $name = 'default', array $config = []): PDO
@@ -145,10 +159,11 @@ class ConnectionManager
 
         try {
             $conn = $pool->borrow();
-            $this->logger->debug("Borrowed connection from pool: {$name}, stats: " . json_encode($pool->stats()));
+            $this->logger->debug("Borrowed connection from pool: $name, stats: " . json_encode($pool->stats()));
+
             return $conn;
         } catch (BorrowTimeoutException $e) {
-            $this->logger->error("Timeout borrowing connection from pool: {$name}", ['exception' => $e]);
+            $this->logger->error("Timeout borrowing connection from pool: $name", ['exception' => $e]);
             throw new RuntimeException("Timeout borrowing connection from pool '$name'", 0, $e);
         }
     }

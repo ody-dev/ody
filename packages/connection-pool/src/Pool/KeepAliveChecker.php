@@ -6,13 +6,19 @@ use Ody\ConnectionPool\KeepaliveCheckerInterface;
 use PDO;
 
 /**
- * @implements KeepaliveCheckerInterface<PDO>
+ * @template TConnection of object
  */
 class KeepAliveChecker implements KeepaliveCheckerInterface
 {
+    /**
+     * @var array <string, mixed>
+     */
     private array $config;
 
-    public function __construct($config)
+    /**
+     * @param array<string, string|int|float> $config
+     */
+    public function __construct(array $config)
     {
         $this->config = $config;
     }

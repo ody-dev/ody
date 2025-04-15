@@ -29,9 +29,9 @@ class MiddlewarePipeline implements RequestHandlerInterface
     /**
      * Constructor
      *
-     * @param callable $finalHandler Final handler to execute
+     * @param callable|RequestHandlerInterface $finalHandler Final handler to execute
      */
-    public function __construct(callable $finalHandler)
+    public function __construct(callable|RequestHandlerInterface $finalHandler)
     {
         $this->finalHandler = $finalHandler;
     }
@@ -73,13 +73,26 @@ class MiddlewarePipeline implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         if (empty($this->middleware)) {
-            return call_user_func($this->finalHandler, $request);
+            // Check the type of the final handler
+            if ($this->finalHandler instanceof RequestHandlerInterface) {
+                // If it's a PSR-15 handler, call its handle() method
+                return $this->finalHandler->handle($request);
+            } elseif (is_callable($this->finalHandler)) {
+                // If it's a callable (Closure, invokable object), use call_user_func
+                return call_user_func($this->finalHandler, $request);
+            }
         }
 
         // Take the first middleware from the stack
         $middleware = array_shift($this->middleware);
 
-        // Process the request through the middleware
+        // Ensure the item is actually middleware before processing
+        if (!($middleware instanceof MiddlewareInterface)) {
+            throw new \LogicException('Invalid item found in middleware pipeline; does not implement MiddlewareInterface.');
+        }
+
+        // Process the request through the middleware, passing the pipeline ($this)
+        // as the next handler.
         return $middleware->process($request, $this);
     }
 }

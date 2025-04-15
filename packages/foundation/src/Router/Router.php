@@ -18,7 +18,7 @@ use function FastRoute\simpleDispatcher;
 class Router
 {
     /**
-     * @var array
+     * @var array<int, string>
      */
     private array $routes = [];
 
@@ -146,6 +146,9 @@ class Router
         return $route;
     }
 
+    /**
+     * @return array<int, string>
+     */
     public function getRoutes(): array
     {
         return $this->routes;
@@ -156,7 +159,7 @@ class Router
      *
      * @param string $method
      * @param string $path
-     * @return array
+     * @return array<string, mixed>
      */
     public function match(string $method, string $path): array
     {
@@ -188,13 +191,25 @@ class Router
 
                 $controllerClass = null;
                 $action = null;
+                $isPsr15Handler = false;
                 if (is_string($handlerIdentifier)) {
                     if (str_contains($handlerIdentifier, '@')) {
                         list($controllerClass, $action) = explode('@', $handlerIdentifier, 2);
                     } elseif (class_exists($handlerIdentifier)) {
-                        $controllerClass = $handlerIdentifier;
-                        $action = '__invoke';
-//                        $handlerIdentifier = $controllerClass;
+                        $interfaces = class_implements($handlerIdentifier); // Get interfaces
+
+                        // Check if it's a PSR-15 Request Handler
+                        if (isset($interfaces['Psr\Http\Server\RequestHandlerInterface'])) {
+                            $controllerClass = $handlerIdentifier;
+                            $isPsr15Handler = true;
+                        } // Check if it's an invokable controller (keep previous logic)
+                        elseif (method_exists($handlerIdentifier, '__invoke')) {
+                            $controllerClass = $handlerIdentifier;
+                            $action = '__invoke';
+                        } else {
+                            // Invalid string handler (neither Controller@action, invokable, nor PSR-15)
+                            $this->logger->warning("Router: Handler string '{$handlerIdentifier}' is not a valid controller, invokable, or PSR-15 handler.");
+                        }
                     }
                 }
 
@@ -203,7 +218,8 @@ class Router
                     'handler' => $handlerIdentifier,
                     'vars' => $routeParams,
                     'controller' => $controllerClass,
-                    'action' => $action
+                    'action' => $action,
+                    'is_psr15' => $isPsr15Handler
                 ];
         }
         $this->logger->error("Router: Dispatcher returned unexpected status: " . $routeInfo[0]);

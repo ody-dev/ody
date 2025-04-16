@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use function Ody\Foundation\gettype;
+use function gettype;
 
 class MiddlewareManager
 {

@@ -10,6 +10,7 @@
 namespace Ody\Foundation\Http;
 
 use Exception;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -17,17 +18,17 @@ use Psr\Log\LoggerInterface;
  *
  * Resolves string controller references to callable instances
  */
-readonly class ControllerResolver
+readonly class HandlerResolver
 {
     /**
      * Constructor
      *
      * @param LoggerInterface $logger
-     * @param ControllerPool $controllerPool
+     * @param HandlerPool $handlerPool
      */
     public function __construct(
         private LoggerInterface $logger,
-        private ControllerPool $controllerPool
+        private HandlerPool $handlerPool
     )
     {
     }
@@ -36,10 +37,10 @@ readonly class ControllerResolver
      * Create a controller instance with all dependencies resolved
      *
      * @param string $class Controller class name
-     * @return object Controller instance
+     * @return RequestHandlerInterface PSR-15 handler instance
      * @throws Exception If controller cannot be created
      */
-    public function createController(string $class): object
+    public function createController(string $class): RequestHandlerInterface
     {
         try {
             // First check if the controller exists
@@ -48,7 +49,7 @@ readonly class ControllerResolver
             }
 
             // Get controller from pool
-            return $this->controllerPool->get($class);
+            return $this->handlerPool->get($class);
         } catch (\Throwable $e) {
             $this->logger->error("Error creating controller", [
                 'controller' => $class,

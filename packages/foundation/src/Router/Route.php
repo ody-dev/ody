@@ -9,8 +9,8 @@
 
 namespace Ody\Foundation\Router;
 
-use Ody\Middleware\MiddlewareConfig;
-use Ody\Middleware\MiddlewareManager;
+use Ody\Foundation\Middleware\MiddlewareConfig;
+use Ody\Foundation\Middleware\MiddlewareManager;
 
 class Route
 {

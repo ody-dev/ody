@@ -36,7 +36,7 @@ use Throwable;
  * @phpstan-type AttributeMiddlewareConfig array{class?: string|list<string>, group?: string, parameters: array<mixed>}
  * Represents the structure of middleware definitions extracted from attributes.
  */
-class MiddlewareRegistry
+class MiddlewareResolver
 {
     /**
      * @var Container The dependency injection container.

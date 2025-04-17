@@ -7,7 +7,7 @@
  *  @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
  */
 
-namespace Ody\Middleware;
+namespace Ody\Foundation\Middleware;
 
 use Ody\Container\Container;
 use Ody\Container\Contracts\BindingResolutionException;
@@ -15,6 +15,7 @@ use Ody\Swoole\Coroutine\ContextManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use function gettype;
@@ -43,11 +44,25 @@ class MiddlewareManager
      * @param LoggerInterface|null $logger
      */
     public function __construct(
-        Container $container,
+        Container        $container,
         ?LoggerInterface $logger = null
-    ) {
+    )
+    {
         $this->container = $container;
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Register middleware from configuration
+     *
+     * @param array $config
+     * @return self
+     * @throws BindingResolutionException
+     */
+    public function registerFromConfig(array $config): self
+    {
+        $this->getRegistry()->fromConfig($config);
+        return $this;
     }
 
     /**
@@ -68,19 +83,6 @@ class MiddlewareManager
     }
 
     /**
-     * Register middleware from configuration
-     *
-     * @param array $config
-     * @return self
-     * @throws BindingResolutionException
-     */
-    public function registerFromConfig(array $config): self
-    {
-        $this->getRegistry()->fromConfig($config);
-        return $this;
-    }
-
-    /**
      * Add middleware for a specific route
      *
      * @param string $method
@@ -96,16 +98,42 @@ class MiddlewareManager
     }
 
     /**
-     * Get all middleware for a route
+     * Handle terminating middleware
      *
-     * @param string $method
-     * @param string $path
-     * @return array
+     * @param ServerRequestInterface $request
+     * @param ResponseInterface $response
+     * @return void
      * @throws BindingResolutionException
      */
-    public function getStackForRoute(string $method, string $path): array
+    public function terminate(ServerRequestInterface $request, ResponseInterface $response): void
     {
-        return $this->getRegistry()->buildPipeline($method, $path);
+        $method = $request->getMethod();
+        $path = $request->getUri()->getPath();
+
+        // Get controller/action info from request attributes
+        $handler = ContextManager::get('_handler');
+
+        // Get middleware stack
+        $stack = $this->getMiddlewareForRoute($method, $path, new $handler);
+
+        // Process all middleware for termination
+        foreach ($stack as $middleware) {
+            try {
+                // Resolve middleware instance
+                $instance = $this->resolve($middleware);
+
+                // Check if it implements TerminatingMiddlewareInterface
+                if ($instance instanceof TerminatingMiddlewareInterface) {
+                    $this->logger->debug('Executing terminate() on middleware: ' . get_class($instance));
+                    $instance->terminate($request, $response);
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('Error in terminating middleware', [
+                    'middleware' => is_string($middleware) ? $middleware : gettype($middleware),
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
     }
 
     /**
@@ -113,18 +141,17 @@ class MiddlewareManager
      *
      * @param string $method HTTP method
      * @param string $path Route path
-     * @param object|string|null $controller Controller class or instance
-     * @param string|null $action Controller method name
+     * @param RequestHandlerInterface $handler
      * @return array
      * @throws BindingResolutionException
      */
     public function getMiddlewareForRoute(
-        string        $method,
-        string        $path,
-        object|string $controller = null,
-        ?string       $action = null
-    ): array {
-        return $this->getRegistry()->getMiddlewareForRoute($method, $path, $controller, $action);
+        string                  $method,
+        string                  $path,
+        RequestHandlerInterface $handler,
+    ): array
+    {
+        return $this->getRegistry()->getMiddlewareForRoute($method, $path, $handler);
     }
 
     /**
@@ -137,45 +164,5 @@ class MiddlewareManager
     public function resolve(mixed $middleware): MiddlewareInterface
     {
         return $this->getRegistry()->resolve($middleware);
-    }
-
-    /**
-     * Handle terminating middleware
-     *
-     * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
-     * @return void
-     */
-    public function terminate(ServerRequestInterface $request, ResponseInterface $response): void
-    {
-        $method = $request->getMethod();
-        $path = $request->getUri()->getPath();
-
-        // Get controller/action info from request attributes
-        $controller = ContextManager::get('_controller');
-        $action = ContextManager::get('_action');
-
-        // Get middleware stack
-        $stack = $this->getMiddlewareForRoute($method, $path, $controller, $action);
-
-        // Process all middleware for termination
-        foreach ($stack as $middleware) {
-            try {
-                // Resolve middleware instance
-                $instance = $this->resolve($middleware);
-
-                // Check if it implements TerminatingMiddlewareInterface
-                if ($instance instanceof TerminatingMiddlewareInterface) {
-                    $this->logger->debug('Executing terminate() on middleware: ' .
-                        (is_object($instance) ? get_class($instance) : gettype($instance)));
-                    $instance->terminate($request, $response);
-                }
-            } catch (\Throwable $e) {
-                $this->logger->error('Error in terminating middleware', [
-                    'middleware' => is_string($middleware) ? $middleware : gettype($middleware),
-                    'error' => $e->getMessage()
-                ]);
-            }
-        }
     }
 }

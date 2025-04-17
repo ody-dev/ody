@@ -10,7 +10,7 @@
 namespace Ody\Foundation\Http;
 
 use Ody\Container\Container;
-use Ody\Container\Contracts\BindingResolutionException;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionClass;
 use ReflectionException;
@@ -22,7 +22,7 @@ use ReflectionException;
  * This implementation avoids serialization by storing controller instances
  * directly in worker memory.
  */
-class ControllerPool
+class HandlerPool
 {
     /**
      * Enable or disable controller caching globally
@@ -72,11 +72,10 @@ class ControllerPool
      * Get a controller instance, either from cache or newly created
      *
      * @param string $class Fully qualified class name
-     * @return object Controller instance
-     * @throws BindingResolutionException If controller instantiation fails
+     * @return RequestHandlerInterface Controller instance
      * @throws ReflectionException If controller instantiation fails
      */
-    public function get(string $class): object
+    public function get(string $class): RequestHandlerInterface
     {
 
         if (!$this->shouldCache($class)) {
@@ -109,7 +108,6 @@ class ControllerPool
      *
      * @param string $class
      * @return object
-     * @throws BindingResolutionException
      * @throws ReflectionException
      */
     private function createInstance(string $class): object
@@ -122,8 +120,6 @@ class ControllerPool
 
         // Resolve dependencies
         $parameters = [];
-        $logger = $this->container->make(LoggerInterface::class);
-
         foreach ($dependencies as $paramInfo) {
             // For typed parameters that aren't built-in types
             if ($paramInfo['hasType'] && !$paramInfo['isBuiltin']) {
@@ -134,7 +130,7 @@ class ControllerPool
                     $parameters[] = $this->container->make($typeName);
                     continue;
                 } catch (\Throwable $e) {
-                    $this->logger->error("ControllerPool FAILED container->make for: {$typeName}", [
+                    $this->logger->error("HandlerPool FAILED container->make for: {$typeName}", [
                         'error_message' => $e->getMessage(),
                         'error_file' => $e->getFile(),
                         'error_line' => $e->getLine(),

@@ -10,8 +10,8 @@
 namespace Ody\Foundation\Http;
 
 use Ody\Container\Container;
-use Ody\Middleware\MiddlewareManager;
-use Ody\Middleware\MiddlewarePipeline;
+use Ody\Foundation\Middleware\MiddlewareManager;
+use Ody\Foundation\Middleware\MiddlewarePipeline;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
@@ -30,9 +30,9 @@ class ControllerDispatcher
     protected Container $container;
 
     /**
-     * @var ControllerResolver
+     * @var HandlerResolver
      */
-    protected ControllerResolver $resolver;
+    protected HandlerResolver $resolver;
 
     /**
      * @var ?MiddlewareManager
@@ -48,13 +48,13 @@ class ControllerDispatcher
      * Constructor
      *
      * @param Container $container
-     * @param ControllerResolver $resolver
+     * @param HandlerResolver $resolver
      * @param ?MiddlewareManager $middlewareManager
      * @param LoggerInterface $logger
      */
     public function __construct(
-        Container $container,
-        ControllerResolver $resolver,
+        Container       $container,
+        HandlerResolver $resolver,
         LoggerInterface    $logger,
         ?MiddlewareManager $middlewareManager = null
     ) {

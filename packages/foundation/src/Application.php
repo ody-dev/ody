@@ -9,15 +9,19 @@
 
 namespace Ody\Foundation;
 
+use Laminas\Stratigility\MiddlewarePipe;
 use Mockery\Exception;
 use Ody\Container\Container;
 use Ody\Container\Contracts\BindingResolutionException;
+use Ody\Foundation\Http\CallableHandlerAdapter;
 use Ody\Foundation\Http\ControllerDispatcher;
-use Ody\Foundation\Http\ControllerPool;
-use Ody\Foundation\Http\ControllerResolver;
+use Ody\Foundation\Http\HandlerPool;
+use Ody\Foundation\Http\HandlerResolver;
 use Ody\Foundation\Http\Request;
 use Ody\Foundation\Http\Response;
 use Ody\Foundation\Http\ResponseEmitter;
+use Ody\Foundation\Middleware\MiddlewareManager;
+use Ody\Foundation\Middleware\MiddlewareResolver;
 use Ody\Foundation\Providers\ApplicationServiceProvider;
 use Ody\Foundation\Providers\ConfigServiceProvider;
 use Ody\Foundation\Providers\EnvServiceProvider;
@@ -25,15 +29,14 @@ use Ody\Foundation\Providers\LoggingServiceProvider;
 use Ody\Foundation\Providers\ServiceProviderManager;
 use Ody\Foundation\Router\Router;
 use Ody\Logger\StreamLogger;
-use Ody\Middleware\MiddlewareManager;
-use Ody\Middleware\MiddlewarePipeline;
 use Ody\Swoole\Coroutine\ContextManager;
 use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface as PsrMiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Psr\Http\Server\RequestHandlerInterface as PsrRequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -189,7 +192,7 @@ class Application implements RequestHandlerInterface
         $config = $this->container->make('config');
         $enableCaching = $config->get('app.controller_cache.enabled', true);
         $excludedControllers = $config->get('app.controller_cache.excluded', []);
-        $controllerPool = $this->container->get(ControllerPool::class);
+        $controllerPool = $this->container->get(HandlerPool::class);
 
         ($enableCaching) ?
             $controllerPool->enableCaching() :
@@ -217,8 +220,8 @@ class Application implements RequestHandlerInterface
             return;
         }
 
-        /** @var ControllerPool $controllerPool */
-        $controllerPool = $this->container->get(ControllerPool::class); // Use get() or make()
+        /** @var HandlerPool $controllerPool */
+        $controllerPool = $this->container->get(HandlerPool::class); // Use get() or make()
 
         $router = $this->container->make(Router::class);
         $routes = $router->getRoutes();
@@ -289,34 +292,34 @@ class Application implements RequestHandlerInterface
             // If we found a route, get the handler
             $handlerIdentifier = $routeInfo['handler'];
             $routeParams = $routeInfo['vars'] ?? [];
-            $controllerClass = $routeInfo['controller'] ?? null;
-            $action = $routeInfo['action'] ?? null;
-            $isPsr15Handler = $routeInfo['is_psr15'] ?? false;
+            $controllerClass = $routeInfo['handler'] ?? null;
+            $isPsr15Handler = $routeInfo['is_psr15'] ?? true;
 
             // Add route parameters to the request
             foreach ($routeParams as $name => $value) {
                 $request = $request->withAttribute($name, $value);
             }
 
-            ContextManager::set('_controller', $routeInfo['controller']);
-            ContextManager::set('_action', $routeInfo['action']);
+            ContextManager::set('_handler', $routeInfo['handler']);
 
             if ($isPsr15Handler && $controllerClass) {
-                // Resolve the PSR-15 handler instance
                 $handlerInstance = $this->getControllerResolver()->createController($controllerClass);
-
-                if (!($handlerInstance instanceof RequestHandlerInterface)) {
-                    // This should ideally not happen if router check is correct, but good safeguard
-                    throw new \RuntimeException("Resolved handler {$controllerClass} does not implement RequestHandlerInterface");
+                if (!($handlerInstance instanceof RequestHandlerInterface)) { /* throw */
                 }
-
-                // Dispatch using the middleware pipeline, passing the RESOLVED INSTANCE
-                return $this->dispatchWithMiddleware($request, $handlerInstance, $routeParams);
-            } elseif ($controllerClass && $action) {
-                return $this->dispatchToController($request, $controllerClass, $action, $routeParams);
-            } elseif (is_callable($handlerIdentifier)) {
-                // Pass the closure to be wrapped by the adapter
-                return $this->dispatchWithMiddleware($request, $handlerIdentifier, $routeParams);
+                return $this->dispatchViaStratigility(
+                    $request,
+                    $handlerInstance
+                );
+            } elseif (is_callable($handlerIdentifier)) { // Handle Closures
+                // Closures also need dispatching via Stratigility
+                $closureHandlerAdapter = new CallableHandlerAdapter(
+                    function (ServerRequestInterface $req) use ($handlerIdentifier, $routeParams) {
+                        $response = $this->container->make(Response::class); // If needed
+                        return call_user_func($handlerIdentifier, $req, $response, $routeParams);
+                    }
+                );
+                // For Closures, controllerClass/action are null for attribute lookup
+                return $this->dispatchViaStratigility($request, $closureHandlerAdapter);
 
             } else {
                 // Handle cases where the handler string was invalid
@@ -331,118 +334,47 @@ class Application implements RequestHandlerInterface
         }
     }
 
-    /**
-     * Dispatch a request to a controller
-     *
-     * @param ServerRequestInterface $request
-     * @param string $controller
-     * @param string $action
-     * @param array $routeParams
-     * @return ResponseInterface
-     * @throws Throwable
-     */
-    protected function dispatchToController(
+    protected function dispatchViaStratigility(
         ServerRequestInterface $request,
-        string $controller,
-        string $action,
-        array $routeParams
+        RequestHandlerInterface $finalHandler
     ): ResponseInterface {
-        // Get or create the controller dispatcher
-        $dispatcher = $this->getControllerDispatcher();
+        /** @var MiddlewareResolver $middlewareResolver */
+        $middlewareResolver = $this->container->get(MiddlewareResolver::class); // Get from container
+        /** @var ContainerInterface $container */
+        $container = $this->container; // For resolving middleware potentially
+        /** @var LoggerInterface $logger */
+        $logger = $this->container->get(LoggerInterface::class);
 
-        // Dispatch the request to the controller
-        return $dispatcher->dispatch($request, $controller, $action, $routeParams);
-    }
-
-    /**
-     * Dispatch a request with middleware
-     *
-     * @param ServerRequestInterface $request
-     * @param callable|RequestHandlerInterface $handler
-     * @param array $routeParams
-     * @return ResponseInterface
-     * @throws BindingResolutionException
-     */
-    protected function dispatchWithMiddleware(
-        ServerRequestInterface           $request,
-        callable|RequestHandlerInterface $handler,
-        array                            $routeParams
-    ): ResponseInterface {
-        $middlewareManager = $this->getMiddlewareManager();
-        $controllerClass = null;
-        $action = null;
-
-        if (is_object($handler) && $handler instanceof PsrRequestHandlerInterface) {
-            $controllerClass = get_class($handler);
-        }
-
-        $middlewareStack = $middlewareManager->getMiddlewareForRoute(
+        // 1. Get the specific middleware stack for this route context
+        $middlewareStack = $middlewareResolver->getMiddlewareForRoute(
             $request->getMethod(),
             $request->getUri()->getPath(),
-            $controllerClass
+            $finalHandler
         );
 
-        $finalHandlerCallable = null;
-        if ($handler instanceof RequestHandlerInterface) {
-            $finalHandlerCallable = function (ServerRequestInterface $request) use ($handler) {
-                return $handler->handle($request);
-            };
-        } elseif (is_callable($handler)) {
-            // If it's a callable (Closure), create a wrapper
-            $finalHandlerCallable = function (ServerRequestInterface $request) use ($handler, $routeParams) {
-                $response = $this->container->make(Response::class); // Provide a response instance
-                // Add route parameters JUST before calling the closure handler
-                // (Redundant if already done in Application::handle, but safe)
-                foreach ($routeParams as $name => $value) {
-                    $request = $request->withAttribute($name, $value);
-                }
+        $pipeline = new MiddlewarePipe();
 
-                return call_user_func($handler, $request, $response, $routeParams);
-            };
-        } else {
-            throw new \InvalidArgumentException("Invalid handler type passed to dispatchWithMiddleware");
-        }
-
-        $pipeline = new MiddlewarePipeline(
-            new Http\CallableHandlerAdapter($finalHandlerCallable)
-        );
-
-        foreach ($middlewareStack as $middleware) {
+        $logger->debug('DispatchViaStratigility: Processing middleware stack', ['stack' => $middlewareStack]);
+        foreach ($middlewareStack as $middlewareDefinition) {
             try {
-                $instance = $middlewareManager->resolve($middleware);
-                $pipeline->add($instance);
-            } catch (Throwable $e) {
-                $this->container->make(LoggerInterface::class)->error('Error resolving/adding middleware in dispatchWithMiddleware', [
-                    'middleware' => is_string($middleware) ? $middleware : (is_object($middleware) ? get_class($middleware) : 'Unknown type'),
-                    'error' => $e->getMessage()
+                $middlewareInstance = $middlewareResolver->resolve($middlewareDefinition); // Use resolver
+                if ($middlewareInstance instanceof PsrMiddlewareInterface) {
+                    $logger->debug('DispatchViaStratigility: Piping middleware', ['class' => get_class($middlewareInstance)]);
+                    $pipeline->pipe($middlewareInstance);
+                } else {
+                    $logger->warning('DispatchViaStratigility: Resolved definition is not PSR-15 Middleware', ['definition' => $middlewareDefinition]);
+                }
+            } catch (\Throwable $e) {
+                $logger->error('DispatchViaStratigility: Failed to resolve/pipe middleware', [
+                    'definition' => $middlewareDefinition,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ]);
             }
         }
 
-        return $pipeline->handle($request);
-    }
-
-    /**
-     * Get the controller dispatcher
-     *
-     * @return ControllerDispatcher
-     * @throws BindingResolutionException
-     */
-    protected function getControllerDispatcher(): ControllerDispatcher
-    {
-        if (!$this->controllerDispatcher) {
-            $this->controllerDispatcher = new ControllerDispatcher(
-                $this->container,
-                new ControllerResolver(
-                    $this->container->make('logger'),
-                    $this->container->make(ControllerPool::class)
-                ),
-                $this->container->make('logger'),
-                $this->getMiddlewareManager(),
-            );
-        }
-
-        return $this->controllerDispatcher;
+        $logger->debug('DispatchViaStratigility: Processing request through pipeline', ['finalHandler' => get_class($finalHandler)]);
+        return $pipeline->process($request, $finalHandler);
     }
 
     /**
@@ -578,16 +510,16 @@ class Application implements RequestHandlerInterface
      * Get the controller/handler resolver
      * @throws BindingResolutionException
      */
-    protected function getControllerResolver(): ControllerResolver
+    protected function getControllerResolver(): HandlerResolver
     {
-        if ($this->container->has(ControllerResolver::class)) {
-            return $this->container->make(ControllerResolver::class);
+        if ($this->container->has(HandlerResolver::class)) {
+            return $this->container->make(HandlerResolver::class);
         }
 
         // Fallback creation (ensure dependencies like LoggerInterface, ControllerPool are available)
-        return new ControllerResolver(
+        return new HandlerResolver(
             $this->container->make(LoggerInterface::class),
-            $this->container->make(ControllerPool::class)
+            $this->container->make(HandlerPool::class)
         );
     }
 }

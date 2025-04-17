@@ -31,7 +31,7 @@ return [
         'http' => [
             // Core providers
             \Ody\Foundation\Providers\FacadeServiceProvider::class,
-            \Ody\Middleware\Providers\MiddlewareServiceProvider::class,
+//            \Ody\Foundation\Middleware\Providers\MiddlewareServiceProvider::class,
             \Ody\Foundation\Providers\RouteServiceProvider::class,
             \Ody\Foundation\Providers\ErrorServiceProvider::class,
             \Ody\Foundation\Providers\CacheServiceProvider::class,
@@ -67,6 +67,7 @@ return [
         'beforeServerStart' => []
 
     ],
+
     'aliases' => [
         'App' => \Ody\Foundation\Application::class,
         'Config' => \Ody\Support\Config::class,
@@ -75,25 +76,11 @@ return [
         'Request' => \Ody\Foundation\Http\Request::class,
         'Response' => \Ody\Foundation\Http\Response::class,
     ],
+
     'routes' => [
         'path' => env('ROUTES_PATH', base_path('routes')),
     ],
-    'middleware' => [
-        'global' => [
-            \Ody\Middleware\ErrorHandlerMiddleware::class,
-            \Ody\Middleware\CorsMiddleware::class,
-            \Ody\Middleware\JsonBodyParserMiddleware::class,
-        ],
-        'named' => [
-            'auth' => \Ody\Auth\Middleware\AuthMiddleware::class,
-        ],
-        'groups' => [
-            'api' => [
-                \Ody\Auth\Middleware\AuthMiddleware::class,
-                \Ody\Middleware\ThrottleMiddleware::class,
-            ]
-        ]
-    ],
+
     'cors' => [
         'origin' => env('CORS_ALLOW_ORIGIN', '*'),
         'methods' => env('CORS_ALLOW_METHODS', 'GET, POST, PUT, DELETE, OPTIONS'),

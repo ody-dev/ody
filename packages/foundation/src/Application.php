@@ -214,6 +214,7 @@ class Application implements RequestHandlerInterface
         /** @var HandlerPool $handlerPool */
         $handlerPool = $this->container->get(HandlerPool::class); // Use get() or make()
 
+        /** @var Router $router */
         $router = $this->container->make(Router::class);
         $routes = $router->getRoutes();
 

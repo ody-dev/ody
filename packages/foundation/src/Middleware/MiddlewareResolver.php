@@ -1,0 +1,859 @@
+<?php
+/*
+ * This file is part of ODY framework.
+ *
+ * @link     https://ody.dev
+ * @document https://ody.dev/docs
+ * @license  https://github.com/ody-dev/ody-foundation/blob/master/LICENSE
+ */
+
+namespace Ody\Foundation\Middleware;
+
+use Ody\Container\Container;
+use Ody\Container\Contracts\BindingResolutionException;
+use Ody\Foundation\Middleware\Adapters\CallableMiddlewareAdapter;
+use Ody\Foundation\Middleware\Attributes\Middleware;
+use Ody\Foundation\Middleware\Attributes\MiddlewareGroup;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use ReflectionClass;
+use ReflectionException;
+use RuntimeException;
+use Throwable;
+
+class MiddlewareResolver
+{
+    /**
+     * @var Container
+     */
+    protected Container $container;
+
+    /**
+     * @var LoggerInterface
+     */
+    protected LoggerInterface $logger;
+
+    /**
+     * @var array
+     */
+    protected array $global = [];
+
+    /**
+     * @var array
+     */
+    protected array $routes = [];
+
+    /**
+     * @var array
+     */
+    protected array $named = [];
+
+    /**
+     * @var array
+     */
+    protected array $groups = [];
+
+    /**
+     * @var array
+     */
+    protected array $resolved = [];
+
+    /**
+     * @var array
+     */
+    protected array $controllerCache = [];
+
+    /**
+     * @var array
+     */
+    protected array $methodCache = [];
+
+    /**
+     * @var bool
+     */
+    protected bool $collectStats;
+
+    /**
+     * @var array
+     */
+    protected array $cacheHits = [];
+
+    /**
+     * @var array
+     */
+    protected array $reflectionCache = [];
+
+    /**
+     * @param Container $container
+     * @param LoggerInterface|null $logger
+     * @param bool $collectStats
+     */
+    public function __construct(
+        Container        $container,
+        ?LoggerInterface $logger = null,
+        bool             $collectStats = false
+    )
+    {
+        $this->container = $container;
+        $this->logger = $logger ?? new NullLogger();
+        $this->collectStats = $collectStats;
+    }
+
+    /**
+     * @param string $method
+     * @param string $path
+     * @param $middleware
+     * @return $this
+     */
+    public function addForRoute(string $method, string $path, $middleware): self
+    {
+        $routeKey = $this->formatRouteKey($method, $path);
+        // Ensure the key exists and is an array before appending
+        if (!isset($this->routes[$routeKey]) || !is_array($this->routes[$routeKey])) {
+            $this->routes[$routeKey] = [];
+        }
+
+        $this->routes[$routeKey][] = $middleware;
+
+        return $this;
+    }
+
+    /**
+     * Format a route key string.
+     *
+     * @param string $method HTTP method.
+     * @param string $path Route path.
+     * @return string Formatted route key (e.g., "GET:/users").
+     */
+    protected function formatRouteKey(string $method, string $path): string
+    {
+        return strtoupper($method) . ':' . $path;
+    }
+
+    /**
+     * Get all middleware references (names/classes/configs) for a route, including controller/method attributes.
+     *
+     * @param string $method HTTP method.
+     * @param string $path Route path.
+     * @param RequestHandlerInterface $handler
+     * @return array Combined list of middleware definitions (strings, configs, etc.).
+     */
+    public function getMiddlewareForRoute(
+        string                  $method,
+        string                  $path,
+        RequestHandlerInterface $handler
+    ): array
+    {
+        $routeDefinedMiddleware = $this->buildPipeline($method, $path);
+
+        $attributeMiddlewareConfigs = $this->getMiddleware($handler);
+        $attributeMiddlewareDefinitions = $this->convertAttributeConfigsToDefinitions($attributeMiddlewareConfigs);
+
+        $combinedList = array_merge(
+            $routeDefinedMiddleware,
+            $this->expandMiddleware($attributeMiddlewareDefinitions)
+        );
+
+        $finalExpandedList = $this->expandMiddleware($combinedList);
+
+        $uniqueMiddleware = array_map('unserialize', array_unique(array_map('serialize', $finalExpandedList)));
+
+        return array_values($uniqueMiddleware);
+    }
+
+    /**
+     * Build a middleware pipeline for a specific route (excluding attribute middleware).
+     * Expands named middleware and groups.
+     *
+     * @param string $method HTTP method.
+     * @param string $path Route path.
+     * @return array Expanded list of middleware definitions for this route.
+     */
+    public function buildPipeline(string $method, string $path): array
+    {
+        $middlewareList = $this->global;
+
+        $routeKey = $this->formatRouteKey($method, $path);
+        if (isset($this->routes[$routeKey])) {
+            $routeMiddleware = is_array($this->routes[$routeKey]) ? $this->routes[$routeKey] : [$this->routes[$routeKey]];
+            $middlewareList = array_merge($middlewareList, $routeMiddleware);
+        }
+
+        // Process and expand the middleware list
+        return $this->expandMiddleware($middlewareList);
+    }
+
+    /**
+     * Expand middleware references (resolve named middleware and groups recursively).
+     *
+     * @param array $middleware List of middleware definitions (can contain names/groups).
+     * @return array Expanded list containing only concrete definitions (class strings, callables, instances, configs).
+     */
+    protected function expandMiddleware(array $middleware): array
+    {
+        $result = [];
+
+        foreach ($middleware as $item) {
+            if (is_string($item)) {
+                // Check if it's a named middleware alias
+                if (isset($this->named[$item])) {
+                    // Add the definition associated with the name
+                    $result[] = $this->named[$item];
+                    continue;
+                }
+
+                // Check if it's a middleware group name
+                if (isset($this->groups[$item]) && is_array($this->groups[$item])) {
+                    // Recursively expand the group and merge results
+                    $expanded = $this->expandMiddleware($this->groups[$item]);
+                    $result = array_merge($result, $expanded);
+                    continue;
+                }
+            }
+
+            // If it's not a resolvable string (name/group), add it as is
+            // This includes class strings, MiddlewareConfig, callables, instances
+            $result[] = $item;
+        }
+
+        // Return a list (re-indexed sequential integer keys)
+        return array_values($result);
+    }
+
+    /**
+     * Get combined middleware configurations from class and method attributes.
+     *
+     * @param RequestHandlerInterface $handler Controller class name or instance.
+     * @return array Combined list of middleware configurations from attributes.
+     */
+    public function getMiddleware(RequestHandlerInterface $handler): array
+    {
+        $handlerClass = get_class($handler);
+        // Ensure class exists for reflection/cache key
+//        if (!class_exists($handlerClass) && !interface_exists($handlerClass)) {
+//            $this->logger->warning("Attempted to get middleware for non-existent class: {$handlerClass}");
+//            return [];
+//        }
+
+        if (isset($this->methodCache[$handlerClass])) {
+            return $this->methodCache[$handlerClass];
+        }
+
+        $handlerMiddleware = $this->getHandlerMiddleware($handlerClass);
+
+        $this->methodCache[$handlerClass] = $handlerMiddleware;
+
+        return $handlerMiddleware;
+    }
+
+    /**
+     * Get middleware configurations defined via attributes on the controller class.
+     * Uses caching.
+     *
+     * @param class-string $controllerClass The fully qualified class name.
+     * @return array List of middleware configurations from class attributes.
+     */
+    protected function getHandlerMiddleware(string $handlerClass): array
+    {
+        // Return from cache if available.
+        if (isset($this->controllerCache[$handlerClass])) {
+            return $this->controllerCache[$handlerClass];
+        }
+
+        if (!class_exists($handlerClass)) {
+            $this->logger->warning("Controller class not found when checking attributes: {$handlerClass}");
+            $this->controllerCache[$handlerClass] = []; // Cache empty result
+            return [];
+        }
+
+        $middlewareConfigs = [];
+        try {
+            // Use reflection cache if available, otherwise create and store
+            if (!isset($this->reflectionCache[$handlerClass])) {
+                $reflectionClass = new ReflectionClass($handlerClass);
+                $constructor = $reflectionClass->getConstructor();
+                $this->reflectionCache[$handlerClass] = [
+                    'class' => $reflectionClass,
+                    'constructor' => $constructor,
+                    'parameters' => $constructor ? $constructor->getParameters() : []
+                ];
+            } else {
+                $reflectionClass = $this->reflectionCache[$handlerClass]['class'];
+            }
+
+            // Process #[Middleware] attributes
+            $middlewareAttributes = $reflectionClass->getAttributes(Middleware::class);
+            foreach ($middlewareAttributes as $attribute) {
+                /** @var Middleware $instance */
+                $instance = $attribute->newInstance();
+                $middlewareDefs = $instance->getMiddleware(); // Can be string or list<string>
+                $parameters = $instance->getParameters(); // array<mixed>
+
+                // Normalize single definition to list for consistent handling
+                $defs = is_array($middlewareDefs) ? $middlewareDefs : [$middlewareDefs];
+
+                // Create config for each class specified in the attribute
+                foreach ($defs as $def) {
+                    if (is_string($def)) { // Ensure it's a string (class name)
+                        $middlewareConfigs[] = [
+                            'class' => $def, // Store single class name here
+                            'parameters' => $parameters
+                        ];
+                    }
+                }
+            }
+
+            // Process #[MiddlewareGroup] attributes
+            $groupAttributes = $reflectionClass->getAttributes(MiddlewareGroup::class);
+            foreach ($groupAttributes as $attribute) {
+                /** @var MiddlewareGroup $instance */
+                $instance = $attribute->newInstance();
+                $middlewareConfigs[] = [
+                    'group' => $instance->getGroupName(), // string
+                    'parameters' => [] // Groups don't have parameters via attributes
+                ];
+            }
+
+        } catch (Throwable $e) { // Catch ReflectionException and others
+            $this->logger->error("Error reflecting or processing controller attributes: {$e->getMessage()}", [
+                'controller' => $handlerClass,
+                'exception' => $e
+            ]);
+
+            // Return empty on error to avoid partial results
+            $middlewareConfigs = [];
+        }
+
+        // Cache the result (even if empty or error occurred)
+        $this->controllerCache[$handlerClass] = $middlewareConfigs;
+
+        return $middlewareConfigs;
+    }
+
+    /**
+     * Helper to convert AttributeMiddlewareConfig[] to MiddlewareDefinition[]
+     * @param array $configs
+     * @return array
+     */
+    protected function convertAttributeConfigsToDefinitions(array $configs): array
+    {
+        // ... (implementation from previous answer) ...
+        $definitions = [];
+        foreach ($configs as $config) {
+            if (isset($config['class']) && is_string($config['class'])) {
+                if (!empty($config['parameters']) && is_array($config['parameters'])) {
+                    $definitions[] = new MiddlewareConfig($config['class'], $config['parameters']);
+                } else {
+                    $definitions[] = $config['class'];
+                }
+            } elseif (isset($config['class']) && is_array($config['class'])) {
+                $parameters = $config['parameters'] ?? [];
+                foreach ($config['class'] as $class) {
+                    if (is_string($class)) {
+                        if (!empty($parameters) && is_array($parameters)) {
+                            $definitions[] = new MiddlewareConfig($class, $parameters);
+                        } else {
+                            $definitions[] = $class;
+                        }
+                    }
+                }
+            } elseif (isset($config['group']) && is_string($config['group'])) {
+                $definitions[] = $config['group'];
+            }
+        }
+        return $definitions;
+    }
+
+    /**
+     * Resolve a middleware definition to an instance of MiddlewareInterface.
+     * Handles caching.
+     *
+     * @param mixed $middleware The definition to resolve.
+     * @return MiddlewareInterface The resolved middleware instance.
+     * @throws RuntimeException If middleware cannot be resolved.
+     */
+    public function resolve(mixed $middleware): MiddlewareInterface
+    {
+        // If already an instance, return it directly.
+        if ($middleware instanceof MiddlewareInterface) {
+            return $middleware;
+        }
+
+        // Generate a cache key based on the definition.
+        $cacheKey = $this->getCacheKey($middleware);
+
+        // Check cache first.
+        if (isset($this->resolved[$cacheKey])) {
+            if ($this->collectStats) {
+                $this->cacheHits[$cacheKey] = ($this->cacheHits[$cacheKey] ?? 0) + 1;
+            }
+            return $this->resolved[$cacheKey];
+        }
+
+        try {
+            // Resolve the middleware definition to an instance.
+            $instance = $this->resolveMiddleware($middleware);
+
+            // Cache the resolved instance.
+            $this->resolved[$cacheKey] = $instance;
+
+            return $instance;
+        } catch (Throwable $e) { // Catch any throwable for robust error handling.
+            $middlewareIdentifier = is_string($middleware) ? $middleware : (is_object($middleware) ? get_class($middleware) : gettype($middleware));
+            $this->logger->error('Failed to resolve middleware', [
+                'middleware' => $middlewareIdentifier,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString() // Optional: include trace for debugging
+            ]);
+
+            // Re-throw as a RuntimeException for consistent error handling upstream.
+            throw new RuntimeException(
+                "Failed to resolve middleware '{$middlewareIdentifier}': " . $e->getMessage(),
+                (int)$e->getCode(), // Preserve original code if any
+                $e // Preserve original exception for context
+            );
+        }
+    }
+
+    /**
+     * Get a unique cache key for a middleware definition.
+     *
+     * @param mixed $middleware The middleware definition.
+     * @return string The generated cache key.
+     */
+    protected function getCacheKey(mixed $middleware): string
+    {
+        if (is_string($middleware)) {
+            // Prefix helps distinguish types if hashes collide (unlikely but possible)
+            return 'str:' . $middleware;
+        }
+
+        // Handle standard callable array format [class, method] or [object, method]
+        if (is_array($middleware) && count($middleware) === 2 && isset($middleware[0], $middleware[1]) && is_string($middleware[1])) {
+            if (is_object($middleware[0])) {
+                return 'call_obj:' . get_class($middleware[0]) . '::' . $middleware[1];
+            } elseif (is_string($middleware[0]) && (class_exists($middleware[0]) || interface_exists($middleware[0]))) { // Check if it looks like a class string
+                return 'call_static:' . $middleware[0] . '::' . $middleware[1];
+            }
+            // Fallthrough for other array types
+        }
+
+        // Handle MiddlewareConfig specifically
+        if ($middleware instanceof MiddlewareConfig) {
+            // Include class and serialized parameters for uniqueness
+            return 'config:' . $middleware->getClass() . ':' . md5(serialize($middleware->getParameters()));
+        }
+
+        // Handle other objects (likely closures or invokable objects)
+        if (is_object($middleware)) {
+            // spl_object_hash is unique per instance *within a request*
+            return 'obj:' . get_class($middleware) . ':' . spl_object_hash($middleware);
+        }
+
+        // Handle other array types (less common for middleware)
+        if (is_array($middleware)) {
+            // Serialize for a somewhat stable hash, though order matters.
+            return 'arr:' . md5(serialize($middleware));
+        }
+
+        // Fallback for other types (resource, null, etc. - should not happen for valid middleware)
+        return 'other:' . gettype($middleware) . ':' . md5(serialize($middleware));
+    }
+
+    /**
+     * Resolve middleware from various definition formats into a MiddlewareInterface instance.
+     *
+     * @param mixed $middleware The middleware definition.
+     * @return MiddlewareInterface The resolved middleware instance.
+     * @throws RuntimeException If middleware cannot be resolved or is invalid.
+     */
+    protected function resolveMiddleware(mixed $middleware): MiddlewareInterface
+    {
+        // Handle MiddlewareConfig objects: Instantiate with parameters.
+        if ($middleware instanceof MiddlewareConfig) {
+            $class = $middleware->getClass();
+            $parameters = $middleware->getParameters();
+
+            try {
+                $instance = $this->createInstanceWithParameters($class, $parameters);
+            } catch (ReflectionException $e) {
+                throw new RuntimeException("Reflection error creating instance of '$class': " . $e->getMessage(), 0, $e);
+            } catch (Throwable $e) {
+                throw new RuntimeException("Error creating instance of '$class': " . $e->getMessage(), 0, $e);
+            }
+
+
+            if ($instance instanceof MiddlewareInterface) {
+                return $instance;
+            }
+            // If the created instance is callable but not MiddlewareInterface, wrap it.
+            if (is_callable($instance)) {
+                $this->logger->debug("Resolved '$class' via MiddlewareConfig resulted in a callable, wrapping with adapter.");
+                return new CallableMiddlewareAdapter($instance);
+            }
+
+            throw new RuntimeException(
+                "Middleware class '$class' resolved via MiddlewareConfig must implement MiddlewareInterface or be callable."
+            );
+        }
+
+        // Handle string class names: Resolve via container or reflection.
+        if (is_string($middleware) && class_exists($middleware)) {
+            try {
+                // Prefer container resolution for dependency injection.
+                if ($this->container->has($middleware)) {
+                    $instance = $this->container->make($middleware);
+                } else {
+                    // Fallback to reflection-based instantiation if not in container.
+                    $this->logger->debug("Middleware class '$middleware' not found in container, attempting reflection instantiation.");
+                    $instance = $this->createInstanceWithReflection($middleware);
+                }
+            } catch (ReflectionException $e) {
+                throw new RuntimeException("Reflection error resolving middleware class '$middleware': " . $e->getMessage(), 0, $e);
+            } catch (Throwable $e) {
+                // Catch potential container errors or other instantiation issues.
+                throw new RuntimeException("Error resolving middleware class '$middleware': " . $e->getMessage(), 0, $e);
+            }
+
+            // Ensure the resolved instance is valid middleware.
+            if ($instance instanceof MiddlewareInterface) {
+                return $instance;
+            }
+            // If it's callable, wrap it.
+            if (is_callable($instance)) {
+                $this->logger->debug("Resolved class '$middleware' resulted in a callable, wrapping with adapter.");
+                return new CallableMiddlewareAdapter($instance);
+            }
+
+            throw new RuntimeException(
+                "Middleware class '$middleware' must resolve to an instance of MiddlewareInterface or a callable."
+            );
+        }
+
+        // Handle direct callables (Closures, invokable objects not matching other types).
+        if (is_callable($middleware)) {
+            return new CallableMiddlewareAdapter($middleware);
+        }
+
+        // If none of the above match, the definition is invalid.
+        $type = is_object($middleware) ? get_class($middleware) : gettype($middleware);
+        throw new RuntimeException(
+            "Invalid middleware definition provided. Expected class name, MiddlewareInterface instance, callable, or MiddlewareConfig. Got: " . $type
+        );
+    }
+
+    /**
+     *  Create an instance of a class, attempting to use provided parameters
+     *  and falling back to container/reflection for remaining dependencies.
+     *
+     * @param string $className
+     * @param array $parameters
+     * @return object
+     * @throws ReflectionException
+     * @throws BindingResolutionException
+     */
+    protected function createInstanceWithParameters(string $className, array $parameters): object
+    {
+        // Use reflection cache
+        if (!isset($this->reflectionCache[$className])) {
+            $reflectionClass = new ReflectionClass($className);
+            if (!$reflectionClass->isInstantiable()) {
+                throw new RuntimeException("Class $className is not instantiable");
+            }
+            $constructor = $reflectionClass->getConstructor();
+            $this->reflectionCache[$className] = [
+                'class' => $reflectionClass,
+                'constructor' => $constructor,
+                'parameters' => $constructor ? $constructor->getParameters() : []
+            ];
+        }
+
+        $reflectionClass = $this->reflectionCache[$className]['class'];
+        $constructor = $this->reflectionCache[$className]['constructor'];
+        $constructorParams = $this->reflectionCache[$className]['parameters'];
+
+        // If no constructor, create instance directly.
+        if ($constructor === null) {
+            return $reflectionClass->newInstanceWithoutConstructor(); // More direct if no constructor
+        }
+
+        $resolvedParams = [];
+        foreach ($constructorParams as $param) {
+            $paramName = $param->getName();
+
+            // 1. Use explicitly provided parameter if available.
+            if (array_key_exists($paramName, $parameters)) {
+                $resolvedParams[] = $parameters[$paramName];
+                continue;
+            }
+
+            // 2. Try resolving by type hint from the container.
+            $paramType = $param->getType();
+            if ($paramType instanceof \ReflectionNamedType && !$paramType->isBuiltin()) {
+                $typeName = $paramType->getName();
+                if ($this->container->has($typeName)) {
+                    try {
+                        $resolvedParams[] = $this->container->make($typeName);
+                        continue;
+                    } catch (Throwable $e) {
+                        // Log container resolution failure, but proceed to check default/optional
+                        $this->logger->debug("Container failed to resolve type '{$typeName}' for parameter '{$paramName}' in '{$className}': " . $e->getMessage());
+                    }
+                }
+                // Special case for LoggerInterface if not directly bound by its class name
+                if ($typeName === LoggerInterface::class && $this->container->has(LoggerInterface::class)) { // Check interface directly
+                    $resolvedParams[] = $this->container->make(LoggerInterface::class);
+                    continue;
+                }
+            }
+
+            // 3. Use default value if the parameter is optional.
+            if ($param->isOptional()) {
+                try {
+                    $resolvedParams[] = $param->getDefaultValue();
+                    continue;
+                } catch (ReflectionException $e) {
+                    // This can happen for e.g. internal constants in default values
+                    throw new RuntimeException("Could not get default value for optional parameter '{$paramName}' in class {$className}: " . $e->getMessage(), 0, $e);
+                }
+            }
+
+            // 4. If nullable, allow null.
+            if ($param->allowsNull()) {
+                $resolvedParams[] = null;
+                continue;
+            }
+
+            // Cannot resolve parameter - this is an error.
+            throw new RuntimeException("Cannot resolve constructor parameter '{$paramName}' for class {$className}");
+        }
+
+        // Create instance with resolved parameters.
+        return $reflectionClass->newInstanceArgs($resolvedParams);
+    }
+
+    /**
+     * Create an instance using reflection, resolving constructor dependencies solely via the container or defaults.
+     *
+     * @param string $className
+     * @return object
+     * @throws BindingResolutionException
+     * @throws ReflectionException
+     */
+    protected function createInstanceWithReflection(string $className): object
+    {
+        // Use shared method logic but with empty parameters array
+        return $this->createInstanceWithParameters($className, []);
+    }
+
+    /**
+     * Clear reflection caches to potentially free memory, e.g., in long-running processes.
+     *
+     * @return void
+     */
+    public function clearReflectionCache(): void
+    {
+        $this->reflectionCache = [];
+        $this->logger->debug("Reflection cache cleared.");
+    }
+
+    /**
+     * Load middleware configuration from an array structure.
+     *
+     * @param array $config
+     * @return $this
+     */
+    public function fromConfig(array $config): self
+    {
+        // Register named middleware
+        if (isset($config['named']) && is_array($config['named'])) {
+            // Process potential MiddlewareConfig definitions within named middleware
+            $processedNamed = [];
+            foreach ($config['named'] as $name => $middleware) {
+                $processedNamed[$name] = $this->processSingleMiddlewareConfig($middleware);
+            }
+            $this->registerNamedMiddleware($processedNamed);
+        }
+
+        // Register groups
+        if (isset($config['groups']) && is_array($config['groups'])) {
+            $this->registerGroupedMiddleware($config['groups']); // This already handles processing
+        }
+
+        // Register global middleware
+        if (isset($config['global']) && is_array($config['global'])) {
+            $processedGlobals = $this->processMiddlewareConfig($config['global']);
+            foreach ($processedGlobals as $middleware) {
+                $this->global($middleware); // Assumes processMiddlewareConfig returns MiddlewareDefinition items
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     *  Process a single middleware definition from config, converting array formats
+     *  to MiddlewareConfig if necessary.
+     *
+     * @param $middleware
+     * @return callable|MiddlewareConfig|MiddlewareInterface|string
+     */
+    protected function processSingleMiddlewareConfig($middleware)
+    {
+        // Format: ['class' => ClassName::class, 'parameters' => [...]]
+        if (is_array($middleware) && isset($middleware['class']) && is_string($middleware['class'])) {
+            $middlewareClass = $middleware['class'];
+            $parameters = $middleware['parameters'] ?? [];
+            if (!is_array($parameters)) {
+                $this->logger->warning("Invalid 'parameters' format for middleware '{$middlewareClass}'. Expected array.", ['parameters' => $parameters]);
+                $parameters = []; // Default to empty array on invalid format
+            }
+            return new MiddlewareConfig($middlewareClass, $parameters);
+        } // Format: [ClassName::class, [...parameters]]
+        elseif (is_array($middleware) && count($middleware) === 2 && is_string($middleware[0]) && class_exists($middleware[0]) && is_array($middleware[1])) {
+            $middlewareClass = $middleware[0];
+            $parameters = $middleware[1];
+            return new MiddlewareConfig($middlewareClass, $parameters);
+        } // Already in a valid format (string, callable, instance, MiddlewareConfig)
+        elseif (is_string($middleware) || is_callable($middleware) || $middleware instanceof MiddlewareInterface || $middleware instanceof MiddlewareConfig) {
+            return $middleware;
+        } else {
+            // Log invalid format and skip (or throw exception)
+            $type = is_object($middleware) ? get_class($middleware) : gettype($middleware);
+            $this->logger->error("Skipping invalid middleware definition format in configuration.", ['definition' => $middleware, 'type' => $type]);
+            // Return null or throw? Returning null means it needs filtering later. Let's throw to be stricter.
+            throw new RuntimeException("Invalid middleware definition format encountered in configuration: type '{$type}'");
+        }
+    }
+
+    /**
+     * Registers named middleware definitions.
+     *
+     * @param array $nameMiddleware Map of alias => definition.
+     * @return void
+     */
+    public function registerNamedMiddleware(array $nameMiddleware): void
+    {
+        foreach ($nameMiddleware as $name => $middleware) {
+            // The middleware definition should already be processed (string, callable, instance, MiddlewareConfig)
+            $this->named($name, $middleware);
+        }
+    }
+
+    /**
+     * Register a named middleware alias.
+     *
+     * @param string $name The alias for the middleware.
+     * @param mixed $middleware The middleware definition.
+     * @return $this
+     */
+    public function named(string $name, mixed $middleware): self
+    {
+        $this->named[$name] = $middleware;
+        return $this;
+    }
+
+    /**
+     * Registers grouped middleware definitions.
+     *  Processes potential configuration arrays within the groups.
+     *
+     * @param array $groupedMiddleware
+     * @return void
+     */
+    private function registerGroupedMiddleware(array $groupedMiddleware): void
+    {
+        foreach ($groupedMiddleware as $name => $middlewareList) {
+            if (is_array($middlewareList)) {
+                // Process the list to handle potential config arrays
+                $processed = $this->processMiddlewareConfig($middlewareList);
+                $this->group($name, $processed);
+            } else {
+                $this->logger->warning("Invalid format for middleware group '{$name}'. Expected an array/list.");
+            }
+        }
+    }
+
+    /**
+     * Process a list of middleware definitions, converting array configurations
+     * into MiddlewareConfig objects.
+     *
+     * @param array $middlewareList
+     * @return array
+     */
+    protected function processMiddlewareConfig(array $middlewareList): array
+    {
+        $result = [];
+        foreach ($middlewareList as $middleware) {
+            $result[] = $this->processSingleMiddlewareConfig($middleware);
+        }
+        // Ensure it's a list
+        return array_values($result);
+    }
+
+    /**
+     * Register a middleware group.
+     *
+     * @param string $name
+     * @param array $middlewareList
+     * @return $this
+     */
+    public function group(string $name, array $middlewareList): self
+    {
+        $this->groups[$name] = $middlewareList;
+        return $this;
+    }
+
+    /**
+     * Register a global middleware.
+     *
+     * @param mixed $middleware The middleware definition to add globally.
+     * @return $this
+     */
+    public function global($middleware): self
+    {
+        $this->global[] = $middleware;
+        return $this;
+    }
+
+    /**
+     * Convert attribute middleware configuration arrays into a flat list of middleware references (strings).
+     *
+     * @param array $attributeMiddlewareConfigs
+     * @return array
+     */
+    protected function convertAttributeFormat(array $attributeMiddlewareConfigs): array
+    {
+        $result = [];
+
+        foreach ($attributeMiddlewareConfigs as $middleware) {
+            // Check if 'class' key exists and holds a string (single class)
+            if (isset($middleware['class']) && is_string($middleware['class'])) {
+                $result[] = $middleware['class'];
+            } // Check if 'class' key exists and holds a list of strings
+            elseif (isset($middleware['class']) && is_array($middleware['class'])) {
+                foreach ($middleware['class'] as $class) {
+                    if (is_string($class)) { // Ensure it's a string
+                        $result[] = $class;
+                    }
+                }
+            } // Check if 'group' key exists (holds group name string)
+            elseif (isset($middleware['group']) && is_string($middleware['group'])) {
+                $result[] = $middleware['group'];
+            }
+            // Note: Parameters are ignored here as we only extract the reference string
+        }
+
+        // Ensure unique values and re-index to maintain list<string> type
+        return array_values(array_unique($result));
+    }
+}
+
+// Helper class assumed to exist for MiddlewareConfig (can be defined elsewhere)
+// namespace Ody\Foundation\Middleware;
+// class MiddlewareConfig {
+//     public function __construct(public string $class, public array $parameters = []) {}
+//     public function getClass(): string { return $this->class; }
+//     public function getParameters(): array { return $this->parameters; }
+// }

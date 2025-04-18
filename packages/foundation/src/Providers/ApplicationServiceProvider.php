@@ -11,7 +11,7 @@ namespace Ody\Foundation\Providers;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Ody\Foundation\Application;
-use Ody\Foundation\Http\ControllerPool;
+use Ody\Foundation\Http\HandlerPool;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ServerRequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -66,14 +66,14 @@ class ApplicationServiceProvider extends ServiceProvider
             return new Application($container, $providerManager);
         });
 
-        $this->singleton(ControllerPool::class, function ($container) {
+        $this->singleton(HandlerPool::class, function ($container) {
             $config = $container->make(\Ody\Support\Config::class);
             $logger = $container->make(\Psr\Log\LoggerInterface::class);
 
             $enableCaching = $config->get('app.controller_cache.enabled', true);
             $excludedControllers = $config->get('app.controller_cache.excluded', []);
 
-            return new \Ody\Foundation\Http\ControllerPool(
+            return new \Ody\Foundation\Http\HandlerPool(
                 $container,
                 $logger,
                 $enableCaching,

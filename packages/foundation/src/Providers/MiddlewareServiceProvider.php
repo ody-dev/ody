@@ -1,11 +1,10 @@
 <?php
 
-namespace Ody\Middleware\Providers;
+namespace Ody\Foundation\Providers;
 
 use Ody\Container\Container;
+use Ody\Foundation\Middleware\MiddlewareManager;
 use Ody\Foundation\Middleware\MiddlewareResolver;
-use Ody\Foundation\Providers\ServiceProvider;
-use Ody\Middleware\MiddlewareManager;
 use Ody\Support\Config;
 use Psr\Log\LoggerInterface;
 

@@ -13,8 +13,6 @@ use Laminas\Stratigility\MiddlewarePipe;
 use Mockery\Exception;
 use Ody\Container\Container;
 use Ody\Container\Contracts\BindingResolutionException;
-use Ody\Foundation\Http\CallableHandlerAdapter;
-use Ody\Foundation\Http\ControllerDispatcher;
 use Ody\Foundation\Http\HandlerPool;
 use Ody\Foundation\Http\HandlerResolver;
 use Ody\Foundation\Http\Request;
@@ -31,11 +29,9 @@ use Ody\Foundation\Router\Router;
 use Ody\Logger\StreamLogger;
 use Ody\Swoole\Coroutine\ContextManager;
 use Psr\Container\ContainerExceptionInterface;
-use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface as PsrMiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -69,11 +65,6 @@ class Application implements RequestHandlerInterface
      * @var bool Whether the application has been bootstrapped
      */
     private bool $bootstrapped = false;
-
-    /**
-     * @var ControllerDispatcher|null
-     */
-    protected ?ControllerDispatcher $controllerDispatcher = null;
 
     /**
      * Core providers that must be registered in a specific order
@@ -176,31 +167,31 @@ class Application implements RequestHandlerInterface
 
         $this->providerManager->boot();
 
-        $this->configureControllerCaching();
+        $this->configureHandlerCaching();
 
-        $this->precacheControllers();
+        $this->precacheHandlers();
 
         $this->bootstrapped = true;
         return $this;
     }
 
     /**
-     * Configure controller caching based on application configuration
+     * Configure handler caching based on application configuration
      */
-    protected function configureControllerCaching(): void
+    protected function configureHandlerCaching(): void
     {
         $config = $this->container->make('config');
-        $enableCaching = $config->get('app.controller_cache.enabled', true);
-        $excludedControllers = $config->get('app.controller_cache.excluded', []);
-        $controllerPool = $this->container->get(HandlerPool::class);
+        $enableCaching = $config->get('app.handler_cache.enabled', true);
+        $excludedHandlers = $config->get('app.handler_cache.excluded', []);
+        $handlerPool = $this->container->get(HandlerPool::class);
 
         ($enableCaching) ?
-            $controllerPool->enableCaching() :
-            $controllerPool->disableCaching();
+            $handlerPool->enableCaching() :
+            $handlerPool->disableCaching();
 
-        // Register excluded controllers
-        if (!empty($excludedControllers)) {
-            $controllerPool->excludeControllers($excludedControllers);
+        // Register excluded handlers
+        if (!empty($excludedHandlers)) {
+            $handlerPool->excludeHandlers($excludedHandlers);
         }
     }
 
@@ -209,19 +200,19 @@ class Application implements RequestHandlerInterface
      * @throws ContainerExceptionInterface
      * @throws BindingResolutionException
      */
-    public function precacheControllers(): void
+    public function precacheHandlers(): void
     {
         // Get configuration directly if needed, or assume pool is configured
         $config = $this->container->get('config');
-        $enableCaching = $config->get('app.controller_cache.enabled', true);
+        $enableCaching = $config->get('app.handler_cache.enabled', true);
 
         if (!$enableCaching) {
-            $this->logger->debug("Controller precaching skipped (caching disabled via config)");
+            $this->logger->debug("Handler precaching skipped (caching disabled via config)");
             return;
         }
 
-        /** @var HandlerPool $controllerPool */
-        $controllerPool = $this->container->get(HandlerPool::class); // Use get() or make()
+        /** @var HandlerPool $handlerPool */
+        $handlerPool = $this->container->get(HandlerPool::class); // Use get() or make()
 
         $router = $this->container->make(Router::class);
         $routes = $router->getRoutes();
@@ -229,19 +220,20 @@ class Application implements RequestHandlerInterface
         foreach ($routes as $route) {
             $handler = $route[2]; // The handler
 
-            if (is_string($handler) && str_contains($handler, '@')) {
-                list($class, $method) = explode('@', $handler, 2);
+            if (is_string($handler)) {
                 try {
-                    if ($controllerPool->controllerIsCached($class)) {
+                    if ($handlerPool->handlerIsCached($handler)) {
                         continue;
                     }
 
-                    $controllerPool->get($class);
+                    $handlerPool->get($handler);
                     $workerId = getmypid();
-                    $this->logger->debug("[Worker {$workerId}] Precaching controller: {$class}");
+                    $this->logger->debug("[Worker {$workerId}] Precaching handler: {$handler}");
                 } catch (Throwable $e) {
-                    $this->logger->error("Failed to precache controller {$class}", ['error' => $e->getMessage()]);
+                    $this->logger->error("Failed to precache handler {$handler}", ['error' => $e->getMessage()]);
                 }
+            } else {
+                throw new Exception('Application::precacheControllers: error TODO: we should not get here');
             }
         }
     }
@@ -286,13 +278,12 @@ class Application implements RequestHandlerInterface
 
             // Handle method not allowed
             if ($routeInfo['status'] === 'method_not_allowed') {
-                return $this->handleMethodNotAllowed($request, $routeInfo['allowed_methods'] ?? []);
+                return $this->handleMethodNotAllowed($routeInfo['allowed_methods'] ?? []);
             }
 
             // If we found a route, get the handler
-            $handlerIdentifier = $routeInfo['handler'];
             $routeParams = $routeInfo['vars'] ?? [];
-            $controllerClass = $routeInfo['handler'] ?? null;
+            $handlerClass = $routeInfo['handler'] ?? null;
             $isPsr15Handler = $routeInfo['is_psr15'] ?? true;
 
             // Add route parameters to the request
@@ -302,33 +293,18 @@ class Application implements RequestHandlerInterface
 
             ContextManager::set('_handler', $routeInfo['handler']);
 
-            if ($isPsr15Handler && $controllerClass) {
-                $handlerInstance = $this->getControllerResolver()->createController($controllerClass);
-                if (!($handlerInstance instanceof RequestHandlerInterface)) { /* throw */
-                }
+            if ($isPsr15Handler && $handlerClass) {
+                $handlerInstance = $this->getHandlerResolver()->createHandler($handlerClass);
+
                 return $this->dispatchViaStratigility(
                     $request,
                     $handlerInstance
                 );
-            } elseif (is_callable($handlerIdentifier)) { // Handle Closures
-                // Closures also need dispatching via Stratigility
-                $closureHandlerAdapter = new CallableHandlerAdapter(
-                    function (ServerRequestInterface $req) use ($handlerIdentifier, $routeParams) {
-                        $response = $this->container->make(Response::class); // If needed
-                        return call_user_func($handlerIdentifier, $req, $response, $routeParams);
-                    }
-                );
-                // For Closures, controllerClass/action are null for attribute lookup
-                return $this->dispatchViaStratigility($request, $closureHandlerAdapter);
-
-            } else {
-                // Handle cases where the handler string was invalid
-                $this->logger->error("Application::handle: Invalid route handler configuration detected for path.", ['routeInfo' => $routeInfo]);
-                return $this->handleNotFound($request); // Or a 500 error
             }
 
-            throw new Exception('Invalid route handler identifier');
-
+            // Handle cases where the handler string was invalid
+            $this->logger->error("Application::handle: Invalid route handler configuration detected for path.", ['routeInfo' => $routeInfo]);
+            return $this->handleNotFound($request); // Or a 500 error
         } catch (Throwable $e) {
             return $this->handleException($request, $e);
         }
@@ -340,8 +316,7 @@ class Application implements RequestHandlerInterface
     ): ResponseInterface {
         /** @var MiddlewareResolver $middlewareResolver */
         $middlewareResolver = $this->container->get(MiddlewareResolver::class); // Get from container
-        /** @var ContainerInterface $container */
-        $container = $this->container; // For resolving middleware potentially
+
         /** @var LoggerInterface $logger */
         $logger = $this->container->get(LoggerInterface::class);
 
@@ -357,13 +332,9 @@ class Application implements RequestHandlerInterface
         $logger->debug('DispatchViaStratigility: Processing middleware stack', ['stack' => $middlewareStack]);
         foreach ($middlewareStack as $middlewareDefinition) {
             try {
-                $middlewareInstance = $middlewareResolver->resolve($middlewareDefinition); // Use resolver
-                if ($middlewareInstance instanceof PsrMiddlewareInterface) {
-                    $logger->debug('DispatchViaStratigility: Piping middleware', ['class' => get_class($middlewareInstance)]);
-                    $pipeline->pipe($middlewareInstance);
-                } else {
-                    $logger->warning('DispatchViaStratigility: Resolved definition is not PSR-15 Middleware', ['definition' => $middlewareDefinition]);
-                }
+                $middlewareInstance = $middlewareResolver->resolve($middlewareDefinition);
+                $logger->debug('DispatchViaStratigility: Piping middleware', ['class' => get_class($middlewareInstance)]);
+                $pipeline->pipe($middlewareInstance);
             } catch (\Throwable $e) {
                 $logger->error('DispatchViaStratigility: Failed to resolve/pipe middleware', [
                     'definition' => $middlewareDefinition,
@@ -412,11 +383,10 @@ class Application implements RequestHandlerInterface
     /**
      * Handle a method not allowed error
      *
-     * @param ServerRequestInterface $request
-     * @param array $allowedMethods
+     * @param array<string> $allowedMethods
      * @return ResponseInterface
      */
-    protected function handleMethodNotAllowed(ServerRequestInterface $request, array $allowedMethods): ResponseInterface
+    protected function handleMethodNotAllowed(array $allowedMethods): ResponseInterface
     {
         return (new Response())
             ->status(405)
@@ -507,16 +477,16 @@ class Application implements RequestHandlerInterface
     }
 
     /**
-     * Get the controller/handler resolver
+     * Get the handler resolver
      * @throws BindingResolutionException
      */
-    protected function getControllerResolver(): HandlerResolver
+    protected function getHandlerResolver(): HandlerResolver
     {
         if ($this->container->has(HandlerResolver::class)) {
             return $this->container->make(HandlerResolver::class);
         }
 
-        // Fallback creation (ensure dependencies like LoggerInterface, ControllerPool are available)
+        // Fallback creation (ensure dependencies like LoggerInterface, HandlerPool are available)
         return new HandlerResolver(
             $this->container->make(LoggerInterface::class),
             $this->container->make(HandlerPool::class)

@@ -32,14 +32,14 @@ class HandlerPool
     private bool $enableCaching;
 
     /**
-     * Controller classes that should be excluded from caching
+     * Handler classes that should be excluded from caching
      *
      * @var array
      */
-    private array $excludedControllers = [];
+    private array $excludedHandlers = [];
 
     /**
-     * Cached controller instances (stored in worker memory)
+     * Cached handler instances (stored in worker memory)
      *
      * @var array
      */
@@ -52,24 +52,30 @@ class HandlerPool
      */
     private array $dependencyInfo = [];
 
+    /**
+     * @param Container $container
+     * @param LoggerInterface $logger
+     * @param bool $enableCaching
+     * @param array $excludedHandlers
+     */
     public function __construct(
         private readonly Container       $container,
         private readonly LoggerInterface $logger,
         bool                             $enableCaching = true,
-        array                            $excludedControllers = []
+        array $excludedHandlers = []
     )
     {
         $this->enableCaching = $enableCaching;
-        $this->excludedControllers = $excludedControllers;
+        $this->excludedHandlers = $excludedHandlers;
         $workerId = getmypid();
-        $this->logger->debug("[Worker {$workerId}] ControllerPool instance created for worker.", [
+        $this->logger->debug("[Worker {$workerId}] HandlerPool instance created for worker.", [
             'cachingEnabled' => $this->enableCaching,
-            'excludedCount' => count($this->excludedControllers)
+            'excludedCount' => count($this->excludedHandlers)
         ]);
     }
 
     /**
-     * Get a controller instance, either from cache or newly created
+     * Get a handler instance, either from cache or newly created
      *
      * @param string $class Fully qualified class name
      * @return RequestHandlerInterface Controller instance
@@ -83,12 +89,13 @@ class HandlerPool
         }
 
         if (isset($this->instances[$class])) {
-            $this->logger->debug("ControllerPool: Using cached instance of {$class}");
+            $this->logger->debug("HandlerPool: Using cached instance of {$class}");
             return $this->instances[$class];
         }
 
         $instance = $this->createInstance($class);
         $this->instances[$class] = $instance;
+
         return $instance;
     }
 
@@ -100,7 +107,7 @@ class HandlerPool
      */
     private function shouldCache(string $class): bool
     {
-        return $this->enableCaching && !in_array($class, $this->excludedControllers);
+        return $this->enableCaching && !in_array($class, $this->excludedHandlers);
     }
 
     /**
@@ -243,10 +250,10 @@ class HandlerPool
     {
         $this->instances = [];
         $this->dependencyInfo = [];
-        $this->logger->debug("ControllerPool: Cache cleared");
+        $this->logger->debug("HandlerPool: Cache cleared");
     }
 
-    public function controllerIsCached(string $class)
+    public function handlerIsCached(string $class)
     {
         return isset($this->instances[$class]);
     }
@@ -254,14 +261,14 @@ class HandlerPool
     /**
      * Add a controller class to the exclusion list
      *
-     * @param string $controllerClass
+     * @param string $handlerCache
      * @return void
      */
-    public function excludeController(string $controllerClass): void
+    public function excludeController(string $handlerCache): void
     {
-        if (!in_array($controllerClass, $this->excludedControllers)) {
-            $this->excludedControllers[] = $controllerClass;
-            $this->logger->debug("ControllerPool: Excluded {$controllerClass} from caching");
+        if (!in_array($handlerCache, $this->excludedHandlers)) {
+            $this->excludedHandlers[] = $handlerCache;
+            $this->logger->debug("HandlerPool: Excluded {$handlerCache} from caching");
         }
     }
 
@@ -278,8 +285,8 @@ class HandlerPool
      * @param array $excluded
      * @return void
      */
-    public function setExcludedControllers(array $excluded): void
+    public function setExcludedHandlers(array $excluded): void
     {
-        $this->excludedControllers = $excluded;
+        $this->excludedHandlers = $excluded;
     }
 }

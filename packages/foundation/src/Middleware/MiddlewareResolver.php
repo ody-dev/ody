@@ -10,6 +10,7 @@
 namespace Ody\Foundation\Middleware;
 
 use Ody\Container\Container;
+use Ody\Container\Contracts\BindingResolutionException;
 use Ody\Foundation\Middleware\Adapters\CallableMiddlewareAdapter;
 use Ody\Foundation\Middleware\Attributes\Middleware;
 use Ody\Foundation\Middleware\Attributes\MiddlewareGroup;
@@ -19,100 +20,75 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionException;
-use ReflectionParameter;
 use RuntimeException;
 use Throwable;
 
-/**
- * Manages the registration, resolution, and retrieval of middleware.
- *
- * @phpstan-type MiddlewareDefinition string|callable|MiddlewareInterface|MiddlewareConfig
- * Represents a middleware definition before resolution. Can be:
- * - string: Class name, named middleware alias, or group name.
- * - callable: A closure or other callable implementing middleware logic.
- * - MiddlewareInterface: An already instantiated middleware.
- * - MiddlewareConfig: A configuration object holding class and parameters.
- *
- * @phpstan-type AttributeMiddlewareConfig array{class?: string|list<string>, group?: string, parameters: array<mixed>}
- * Represents the structure of middleware definitions extracted from attributes.
- */
 class MiddlewareResolver
 {
     /**
-     * @var Container The dependency injection container.
+     * @var Container
      */
     protected Container $container;
 
     /**
-     * @var LoggerInterface The logger instance.
+     * @var LoggerInterface
      */
     protected LoggerInterface $logger;
 
     /**
-     * Global middleware applied to all requests.
-     * @var list<MiddlewareDefinition>
+     * @var array
      */
     protected array $global = [];
 
     /**
-     * Route-specific middleware, keyed by "METHOD:path".
-     * @var array<string, list<MiddlewareDefinition>>
+     * @var array
      */
     protected array $routes = [];
 
     /**
-     * Named middleware map (alias => definition).
-     * @var array<string, MiddlewareDefinition>
+     * @var array
      */
     protected array $named = [];
 
     /**
-     * Middleware groups (group_name => list of definitions).
-     * @var array<string, list<MiddlewareDefinition>>
+     * @var array
      */
     protected array $groups = [];
 
     /**
-     * Cache of resolved middleware instances (cache_key => instance).
-     * @var array<string, MiddlewareInterface>
+     * @var array
      */
     protected array $resolved = [];
 
     /**
-     * Cache of resolved controller middleware (class_name => attribute config list).
-     * @var array<class-string, list<AttributeMiddlewareConfig>>
+     * @var array
      */
     protected array $controllerCache = [];
 
     /**
-     * Cache of resolved method middleware (class_name@method => attribute config list).
-     * @var array<string, list<AttributeMiddlewareConfig>>
+     * @var array
      */
     protected array $methodCache = [];
 
     /**
-     * @var bool Whether to collect cache statistics.
+     * @var bool
      */
     protected bool $collectStats;
 
     /**
-     * Cache hits for statistics (cache_key => hit_count).
-     * @var array<string, int>
+     * @var array
      */
     protected array $cacheHits = [];
 
     /**
-     * Cache for Reflection objects to avoid repeated instantiation.
-     * @var array<class-string, array{class: ReflectionClass<object>, constructor: ?\ReflectionMethod, parameters: list<ReflectionParameter>}>
+     * @var array
      */
     protected array $reflectionCache = [];
 
     /**
-     * Constructor
-     *
-     * @param Container $container The DI container.
-     * @param LoggerInterface|null $logger Optional logger. Defaults to NullLogger.
-     * @param bool $collectStats Whether to collect cache statistics.
+     * @param Container $container
+     * @param LoggerInterface|null $logger
+     * @param bool $collectStats
      */
     public function __construct(
         Container        $container,
@@ -126,11 +102,9 @@ class MiddlewareResolver
     }
 
     /**
-     * Register middleware for a specific route.
-     *
-     * @param string $method HTTP method (e.g., 'GET', 'POST').
-     * @param string $path Route path pattern.
-     * @param MiddlewareDefinition $middleware The middleware definition to add.
+     * @param string $method
+     * @param string $path
+     * @param $middleware
      * @return $this
      */
     public function addForRoute(string $method, string $path, $middleware): self
@@ -164,7 +138,7 @@ class MiddlewareResolver
      * @param string $method HTTP method.
      * @param string $path Route path.
      * @param RequestHandlerInterface $handler
-     * @return list<MiddlewareDefinition> Combined list of middleware definitions (strings, configs, etc.).
+     * @return array Combined list of middleware definitions (strings, configs, etc.).
      */
     public function getMiddlewareForRoute(
         string                  $method,
@@ -195,7 +169,7 @@ class MiddlewareResolver
      *
      * @param string $method HTTP method.
      * @param string $path Route path.
-     * @return list<MiddlewareDefinition> Expanded list of middleware definitions for this route.
+     * @return array Expanded list of middleware definitions for this route.
      */
     public function buildPipeline(string $method, string $path): array
     {
@@ -214,8 +188,8 @@ class MiddlewareResolver
     /**
      * Expand middleware references (resolve named middleware and groups recursively).
      *
-     * @param list<MiddlewareDefinition> $middleware List of middleware definitions (can contain names/groups).
-     * @return list<MiddlewareDefinition> Expanded list containing only concrete definitions (class strings, callables, instances, configs).
+     * @param array $middleware List of middleware definitions (can contain names/groups).
+     * @return array Expanded list containing only concrete definitions (class strings, callables, instances, configs).
      */
     protected function expandMiddleware(array $middleware): array
     {
@@ -252,7 +226,7 @@ class MiddlewareResolver
      * Get combined middleware configurations from class and method attributes.
      *
      * @param RequestHandlerInterface $handler Controller class name or instance.
-     * @return list<AttributeMiddlewareConfig> Combined list of middleware configurations from attributes.
+     * @return array Combined list of middleware configurations from attributes.
      */
     public function getMiddleware(RequestHandlerInterface $handler): array
     {
@@ -279,7 +253,7 @@ class MiddlewareResolver
      * Uses caching.
      *
      * @param class-string $controllerClass The fully qualified class name.
-     * @return list<AttributeMiddlewareConfig> List of middleware configurations from class attributes.
+     * @return array List of middleware configurations from class attributes.
      */
     protected function getHandlerMiddleware(string $handlerClass): array
     {
@@ -347,6 +321,7 @@ class MiddlewareResolver
                 'controller' => $handlerClass,
                 'exception' => $e
             ]);
+
             // Return empty on error to avoid partial results
             $middlewareConfigs = [];
         }
@@ -359,8 +334,8 @@ class MiddlewareResolver
 
     /**
      * Helper to convert AttributeMiddlewareConfig[] to MiddlewareDefinition[]
-     * @param list<AttributeMiddlewareConfig> $configs
-     * @return list<MiddlewareDefinition>
+     * @param array $configs
+     * @return array
      */
     protected function convertAttributeConfigsToDefinitions(array $configs): array
     {
@@ -395,11 +370,11 @@ class MiddlewareResolver
      * Resolve a middleware definition to an instance of MiddlewareInterface.
      * Handles caching.
      *
-     * @param MiddlewareDefinition $middleware The definition to resolve.
+     * @param mixed $middleware The definition to resolve.
      * @return MiddlewareInterface The resolved middleware instance.
      * @throws RuntimeException If middleware cannot be resolved.
      */
-    public function resolve($middleware): MiddlewareInterface
+    public function resolve(mixed $middleware): MiddlewareInterface
     {
         // If already an instance, return it directly.
         if ($middleware instanceof MiddlewareInterface) {
@@ -445,10 +420,10 @@ class MiddlewareResolver
     /**
      * Get a unique cache key for a middleware definition.
      *
-     * @param MiddlewareDefinition $middleware The middleware definition.
+     * @param mixed $middleware The middleware definition.
      * @return string The generated cache key.
      */
-    protected function getCacheKey($middleware): string
+    protected function getCacheKey(mixed $middleware): string
     {
         if (is_string($middleware)) {
             // Prefix helps distinguish types if hashes collide (unlikely but possible)
@@ -490,11 +465,11 @@ class MiddlewareResolver
     /**
      * Resolve middleware from various definition formats into a MiddlewareInterface instance.
      *
-     * @param MiddlewareDefinition $middleware The middleware definition.
+     * @param mixed $middleware The middleware definition.
      * @return MiddlewareInterface The resolved middleware instance.
      * @throws RuntimeException If middleware cannot be resolved or is invalid.
      */
-    protected function resolveMiddleware($middleware): MiddlewareInterface
+    protected function resolveMiddleware(mixed $middleware): MiddlewareInterface
     {
         // Handle MiddlewareConfig objects: Instantiate with parameters.
         if ($middleware instanceof MiddlewareConfig) {
@@ -526,7 +501,6 @@ class MiddlewareResolver
 
         // Handle string class names: Resolve via container or reflection.
         if (is_string($middleware) && class_exists($middleware)) {
-            $instance = null;
             try {
                 // Prefer container resolution for dependency injection.
                 if ($this->container->has($middleware)) {
@@ -571,15 +545,14 @@ class MiddlewareResolver
     }
 
     /**
-     * Create an instance of a class, attempting to use provided parameters
-     * and falling back to container/reflection for remaining dependencies.
+     *  Create an instance of a class, attempting to use provided parameters
+     *  and falling back to container/reflection for remaining dependencies.
      *
-     * @template T of object
-     * @param class-string<T> $className The class to instantiate.
-     * @param array<string, mixed> $parameters Parameters to pass to the constructor (name => value).
-     * @return T The created instance.
-     * @throws ReflectionException If reflection fails.
-     * @throws RuntimeException If a parameter cannot be resolved.
+     * @param string $className
+     * @param array $parameters
+     * @return object
+     * @throws ReflectionException
+     * @throws BindingResolutionException
      */
     protected function createInstanceWithParameters(string $className, array $parameters): object
     {
@@ -597,7 +570,6 @@ class MiddlewareResolver
             ];
         }
 
-        /** @var ReflectionClass<T> $reflectionClass */
         $reflectionClass = $this->reflectionCache[$className]['class'];
         $constructor = $this->reflectionCache[$className]['constructor'];
         $constructorParams = $this->reflectionCache[$className]['parameters'];
@@ -665,11 +637,10 @@ class MiddlewareResolver
     /**
      * Create an instance using reflection, resolving constructor dependencies solely via the container or defaults.
      *
-     * @template T of object
-     * @param class-string<T> $className The class to instantiate.
-     * @return T The created instance.
-     * @throws ReflectionException If reflection fails.
-     * @throws RuntimeException If a non-optional parameter cannot be resolved.
+     * @param string $className
+     * @return object
+     * @throws BindingResolutionException
+     * @throws ReflectionException
      */
     protected function createInstanceWithReflection(string $className): object
     {
@@ -691,11 +662,7 @@ class MiddlewareResolver
     /**
      * Load middleware configuration from an array structure.
      *
-     * @param array{
-     * named?: array<string, MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}>,
-     * groups?: array<string, list<MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}>>,
-     * global?: list<MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}>
-     * } $config Configuration array.
+     * @param array $config
      * @return $this
      */
     public function fromConfig(array $config): self
@@ -727,11 +694,11 @@ class MiddlewareResolver
     }
 
     /**
-     * Process a single middleware definition from config, converting array formats
-     * to MiddlewareConfig if necessary.
+     *  Process a single middleware definition from config, converting array formats
+     *  to MiddlewareConfig if necessary.
      *
-     * @param MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}|array{0: class-string, 1: array<mixed>} $middleware Raw definition from config.
-     * @return MiddlewareDefinition Processed definition (string, callable, instance, or MiddlewareConfig).
+     * @param $middleware
+     * @return callable|MiddlewareConfig|MiddlewareInterface|string
      */
     protected function processSingleMiddlewareConfig($middleware)
     {
@@ -764,7 +731,7 @@ class MiddlewareResolver
     /**
      * Registers named middleware definitions.
      *
-     * @param array<string, MiddlewareDefinition> $nameMiddleware Map of alias => definition.
+     * @param array $nameMiddleware Map of alias => definition.
      * @return void
      */
     public function registerNamedMiddleware(array $nameMiddleware): void
@@ -779,10 +746,10 @@ class MiddlewareResolver
      * Register a named middleware alias.
      *
      * @param string $name The alias for the middleware.
-     * @param MiddlewareDefinition $middleware The middleware definition.
+     * @param mixed $middleware The middleware definition.
      * @return $this
      */
-    public function named(string $name, $middleware): self
+    public function named(string $name, mixed $middleware): self
     {
         $this->named[$name] = $middleware;
         return $this;
@@ -790,9 +757,9 @@ class MiddlewareResolver
 
     /**
      * Registers grouped middleware definitions.
-     * Processes potential configuration arrays within the groups.
+     *  Processes potential configuration arrays within the groups.
      *
-     * @param array<string, list<MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}>> $groupedMiddleware Map of group name => list of definitions.
+     * @param array $groupedMiddleware
      * @return void
      */
     private function registerGroupedMiddleware(array $groupedMiddleware): void
@@ -812,8 +779,8 @@ class MiddlewareResolver
      * Process a list of middleware definitions, converting array configurations
      * into MiddlewareConfig objects.
      *
-     * @param list<MiddlewareDefinition|array{class: class-string, parameters?: array<mixed>}|array{0: class-string, 1: array<mixed>}> $middlewareList Raw list from config.
-     * @return list<MiddlewareDefinition> Processed list suitable for internal storage.
+     * @param array $middlewareList
+     * @return array
      */
     protected function processMiddlewareConfig(array $middlewareList): array
     {
@@ -828,8 +795,8 @@ class MiddlewareResolver
     /**
      * Register a middleware group.
      *
-     * @param string $name The name of the group.
-     * @param list<MiddlewareDefinition> $middlewareList List of middleware definitions for the group.
+     * @param string $name
+     * @param array $middlewareList
      * @return $this
      */
     public function group(string $name, array $middlewareList): self
@@ -841,7 +808,7 @@ class MiddlewareResolver
     /**
      * Register a global middleware.
      *
-     * @param MiddlewareDefinition $middleware The middleware definition to add globally.
+     * @param mixed $middleware The middleware definition to add globally.
      * @return $this
      */
     public function global($middleware): self
@@ -853,8 +820,8 @@ class MiddlewareResolver
     /**
      * Convert attribute middleware configuration arrays into a flat list of middleware references (strings).
      *
-     * @param list<AttributeMiddlewareConfig> $attributeMiddlewareConfigs Middleware definitions from attributes.
-     * @return list<string> List of middleware class names or group names.
+     * @param array $attributeMiddlewareConfigs
+     * @return array
      */
     protected function convertAttributeFormat(array $attributeMiddlewareConfigs): array
     {

@@ -9,6 +9,7 @@
 
 namespace Ody\Foundation\Router;
 
+use Ody\Container\Contracts\BindingResolutionException;
 use Ody\Foundation\Middleware\MiddlewareConfig;
 use Ody\Foundation\Middleware\MiddlewareManager;
 
@@ -127,6 +128,7 @@ class Route
      * @param string $middleware Middleware class name
      * @param array $parameters Parameters to pass to middleware constructor
      * @return self
+     * @throws BindingResolutionException
      */
     protected function addMiddlewareWithParams(string $middleware, array $parameters): self
     {

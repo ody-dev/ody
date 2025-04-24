@@ -30,7 +30,6 @@ return [
          */
         'http' => [
             // Core providers
-            \Ody\Foundation\Providers\FacadeServiceProvider::class,
             \Ody\Foundation\Providers\MiddlewareServiceProvider::class,
             \Ody\Foundation\Providers\RouteServiceProvider::class,
             \Ody\Foundation\Providers\ErrorServiceProvider::class,

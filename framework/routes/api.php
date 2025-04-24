@@ -10,8 +10,10 @@
 use App\Handlers\CreateUserHandler;
 use App\Handlers\GetUserHandler;
 use App\Handlers\GetUsersHandler;
-use Ody\Foundation\Facades\Route;
+use Ody\Foundation\Router\Router;
 
-Route::get('/users', GetUsersHandler::class);
-Route::get('/users/{id}', GetUserHandler::class);
-Route::post('/users', CreateUserHandler::class);
+/** @var Router $router */
+
+$router->get('/users', GetUsersHandler::class);
+$router->get('/users/{id}', GetUserHandler::class);
+$router->post('/users', CreateUserHandler::class);

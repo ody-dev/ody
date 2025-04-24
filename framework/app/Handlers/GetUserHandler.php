@@ -3,7 +3,7 @@
 namespace App\Handlers;
 
 use App\Repositories\UserRepository;
-use Laminas\Diactoros\Response\JsonResponse;
+use Ody\Foundation\Http\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;

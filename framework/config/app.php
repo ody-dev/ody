@@ -39,7 +39,6 @@ return [
             // Package providers
             \Ody\DB\Providers\DatabaseServiceProvider::class,
             \Ody\DB\Doctrine\Providers\DBALServiceProvider::class,
-//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
 //            \Ody\Auth\Providers\AuthServiceProvider::class,
 //            \Ody\AMQP\Providers\AMQPServiceProvider::class,
 //            \Ody\CQRS\Providers\CQRSServiceProvider::class,
@@ -72,7 +71,6 @@ return [
          */
         'beforeServerStart' => [
 //            \Ody\DB\Providers\DatabaseServiceProvider::class,
-//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
 //            \Ody\Process\Providers\ProcessServiceProvider::class,
 //            \Ody\CQRS\Providers\CQRSServiceProvider::class,
 //            \Ody\AMQP\Providers\AMQPServiceProvider::class,

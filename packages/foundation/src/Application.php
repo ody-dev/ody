@@ -9,6 +9,7 @@
 
 namespace Ody\Foundation;
 
+use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Stratigility\MiddlewarePipe;
 use Mockery\Exception;
 use Ody\Container\Container;
@@ -16,7 +17,6 @@ use Ody\Container\Contracts\BindingResolutionException;
 use Ody\Foundation\Http\HandlerPool;
 use Ody\Foundation\Http\HandlerResolver;
 use Ody\Foundation\Http\Request;
-use Ody\Foundation\Http\Response;
 use Ody\Foundation\Http\ResponseEmitter;
 use Ody\Foundation\Middleware\MiddlewareManager;
 use Ody\Foundation\Middleware\MiddlewareResolver;
@@ -105,6 +105,10 @@ class Application implements RequestHandlerInterface
      */
     public function getLogger(): LoggerInterface
     {
+        if ($this->container->has(LoggerInterface::class)) {
+            return $this->container->get(LoggerInterface::class);
+        }
+
         return $this->logger;
     }
 
@@ -163,9 +167,14 @@ class Application implements RequestHandlerInterface
         }
 
         $this->registerCoreProviders();
+
         $this->providerManager->registerConfigProviders('app.providers.http');
 
         $this->providerManager->boot();
+
+        if ($this->container->has(LoggerInterface::class)) {
+            $this->logger = $this->container->get(LoggerInterface::class);
+        }
 
         $this->configureHandlerCaching();
 
@@ -248,7 +257,6 @@ class Application implements RequestHandlerInterface
     protected function registerCoreProviders(): void
     {
         foreach ($this->providers as $provider) {
-            // Only register if class exists (allows for optional components)
             if (class_exists($provider)) {
                 $this->providerManager->register($provider);
             }
@@ -265,27 +273,21 @@ class Application implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         try {
-            // Add the request to the container
             $this->container->instance(ServerRequestInterface::class, $request);
 
-            // Match the route using the Router from the container
             $router = $this->getRouter();
             $routeInfo = $router->match($request->getMethod(), $request->getUri()->getPath());
 
-            // Handle route not found
             if ($routeInfo['status'] === 'not_found') {
                 return $this->handleNotFound($request);
             }
 
-            // Handle method not allowed
             if ($routeInfo['status'] === 'method_not_allowed') {
                 return $this->handleMethodNotAllowed($routeInfo['allowed_methods'] ?? []);
             }
 
-            // If we found a route, get the handler
             $routeParams = $routeInfo['vars'] ?? [];
             $handlerClass = $routeInfo['handler'] ?? null;
-            $isPsr15Handler = $routeInfo['is_psr15'] ?? true;
 
             // Add route parameters to the request
             foreach ($routeParams as $name => $value) {
@@ -294,13 +296,12 @@ class Application implements RequestHandlerInterface
 
             ContextManager::set('_handler', $routeInfo['handler']);
 
-            if ($isPsr15Handler && $handlerClass) {
+            if ($handlerClass) {
                 $handlerInstance = $this->getHandlerResolver()->createHandler($handlerClass);
 
                 return $this->dispatch($request, $handlerInstance);
             }
 
-            // Handle cases where the handler string was invalid
             $this->logger->error("Application::handle: Invalid route handler configuration detected for path.", ['routeInfo' => $routeInfo]);
             return $this->handleNotFound($request); // Or a 500 error
         } catch (Throwable $e) {
@@ -320,12 +321,11 @@ class Application implements RequestHandlerInterface
         RequestHandlerInterface $finalHandler
     ): ResponseInterface {
         /** @var MiddlewareResolver $middlewareResolver */
-        $middlewareResolver = $this->container->get(MiddlewareResolver::class); // Get from container
+        $middlewareResolver = $this->container->get(MiddlewareResolver::class);
 
         /** @var LoggerInterface $logger */
         $logger = $this->container->get(LoggerInterface::class);
 
-        // 1. Get the specific middleware stack for this route context
         $middlewareStack = $middlewareResolver->getMiddlewareForRoute(
             $request->getMethod(),
             $request->getUri()->getPath(),
@@ -339,7 +339,7 @@ class Application implements RequestHandlerInterface
                 $middlewareInstance = $middlewareResolver->resolve($middlewareDefinition);
                 $pipeline->pipe($middlewareInstance);
             } catch (\Throwable $e) {
-                $logger->error('DispatchViaStratigility: Failed to resolve/pipe middleware', [
+                $logger->error('dispatch: Failed to resolve/pipe middleware', [
                     'definition' => $middlewareDefinition,
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
@@ -373,13 +373,11 @@ class Application implements RequestHandlerInterface
      */
     protected function handleNotFound(ServerRequestInterface $request): ResponseInterface
     {
-        return (new Response())
-            ->status(404)
-            ->json([
-                'error' => 'Not Found',
-                'message' => 'The requested resource was not found',
-                'path' => $request->getUri()->getPath()
-            ]);
+        return new JsonResponse([
+            'error' => 'Not Found',
+            'message' => 'The requested resource was not found',
+            'path' => $request->getUri()->getPath()
+        ], 404);
     }
 
     /**
@@ -390,14 +388,13 @@ class Application implements RequestHandlerInterface
      */
     protected function handleMethodNotAllowed(array $allowedMethods): ResponseInterface
     {
-        return (new Response())
-            ->status(405)
-            ->withHeader('Allow', implode(', ', $allowedMethods))
-            ->json([
-                'error' => 'Method Not Allowed',
-                'message' => 'The requested method is not allowed for this resource',
-                'allowed_methods' => $allowedMethods
-            ]);
+        return new JsonResponse([
+            'error' => 'Method Not Allowed',
+            'message' => 'The requested method is not allowed for this resource',
+            'allowed_methods' => $allowedMethods
+        ], 405, [
+            'Allow' => implode(', ', $allowedMethods)
+        ]);
     }
 
     /**
@@ -439,9 +436,7 @@ class Application implements RequestHandlerInterface
             $errorData['trace'] = explode("\n", $e->getTraceAsString());
         }
 
-        return (new Response())
-            ->status(500)
-            ->json($errorData);
+        return new JsonResponse($errorData, 500);
     }
 
     /**

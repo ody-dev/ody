@@ -49,9 +49,6 @@ class CorsMiddleware implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        var_dump([
-            'CorsMiddleware'
-        ]);
         // For preflight OPTIONS requests
         if ($request->getMethod() === 'OPTIONS') {
             $response = new Response();

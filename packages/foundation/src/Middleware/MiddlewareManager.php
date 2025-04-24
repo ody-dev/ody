@@ -110,11 +110,11 @@ class MiddlewareManager
         $method = $request->getMethod();
         $path = $request->getUri()->getPath();
 
-        // Get controller/action info from request attributes
+        // Get handler info from request attributes
         $handler = ContextManager::get('_handler');
 
         // Get middleware stack
-        $stack = $this->getMiddlewareForRoute($method, $path, new $handler);
+        $stack = $this->getMiddlewareForRoute($method, $path, $this->container->make($handler));
 
         // Process all middleware for termination
         foreach ($stack as $middleware) {

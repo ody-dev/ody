@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 
-class GetUsersHandler implements RequestHandlerInterface
+class CreateUserHandler implements RequestHandlerInterface
 {
     public function __construct(
         protected UserRepository $userRepository,
@@ -17,13 +17,9 @@ class GetUsersHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $users = $this->userRepository->getAll();
+        $user = $this->userRepository->create($request->getParsedBody());
 
-        if (empty($users)) {
-            return new JsonResponse(['error' => 'Users not found'], 404);
-        }
-
-        return new JsonResponse(['data' => $users], 200);
+        return new JsonResponse(['data' => $user], 200);
 
     }
 }

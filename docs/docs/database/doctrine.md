@@ -407,10 +407,6 @@ If you see connection timeout errors:
 2. Ensure connections are being returned to the pool properly
 3. Check for leaks using the built-in leak detection
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## License
 
 This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

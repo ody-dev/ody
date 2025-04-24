@@ -209,7 +209,6 @@ return [
             // Package providers
             \Ody\DB\Providers\DatabaseServiceProvider::class,
             \Ody\DB\Doctrine\Providers\DBALServiceProvider::class,
-//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
 //            \Ody\Auth\Providers\AuthServiceProvider::class,
 //            \Ody\AMQP\Providers\AMQPServiceProvider::class,
 //            \Ody\CQRS\Providers\CQRSServiceProvider::class,
@@ -242,7 +241,6 @@ return [
          */
         'beforeServerStart' => [
 //            \Ody\DB\Providers\DatabaseServiceProvider::class,
-//            \Ody\DB\Eloquent\Providers\EloquentServiceProvider::class,
 //            \Ody\Process\Providers\ProcessServiceProvider::class,
 //            \Ody\CQRS\Providers\CQRSServiceProvider::class,
 //            \Ody\AMQP\Providers\AMQPServiceProvider::class,
@@ -287,23 +285,6 @@ public function register(): void
     });
 }
 ```
-
-## Built-in Service Providers
-
-ODY framework includes several core service providers:
-
-| Provider                     | Purpose                                  |
-|------------------------------|------------------------------------------|
-| `ApplicationServiceProvider` | Core application services and middleware |
-| `ConfigServiceProvider`      | Configuration loading and management     |
-| `ConsoleServiceProvider`     | Console commands for CLI tools           |
-| `DatabaseServiceProvider`    | Database connections and PDO setup       |
-| `EnvServiceProvider`         | Environment variable loading             |
-| `ErrorServiceProvider`       | Exception handling                       |
-| `FacadeServiceProvider`      | Facade registration                      |
-| `LoggingServiceProvider`     | Logging services                         |
-| `MiddlewareServiceProvider`  | HTTP middleware management               |
-| `RouteServiceProvider`       | Route loading and registration           |
 
 ## Best Practices
 

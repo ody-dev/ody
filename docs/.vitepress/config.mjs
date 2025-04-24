@@ -8,7 +8,7 @@ export default defineConfig({
         // https://vitepress.dev/reference/default-theme-config
         nav: [
             {text: 'Home', link: '/'},
-            {text: 'Docs', link: '/docs'},
+            {text: 'Docs', link: '/docs/introduction.html'},
             // { text: 'Reference', link: '/docs' }
         ],
 
@@ -43,8 +43,9 @@ function sidebarDocs() {
             items: [
                 {text: 'Service Providers', base: '/docs/foundation/', link: 'service-providers'},
                 {text: 'Middleware', base: '/docs/foundation/', link: 'middleware'},
-                {text: 'Request', base: '/docs/foundation/', link: 'request'},
-                {text: 'Response', base: '/docs/foundation/', link: 'response'},
+                {text: 'Futures', base: '/docs/foundation/', link: 'futures'},
+                // {text: 'Request', base: '/docs/foundation/', link: 'request'},
+                // {text: 'Response', base: '/docs/foundation/', link: 'response'},
                 {text: 'Routing', base: '/docs/foundation/', link: 'routing'},
                 {text: 'Exception Handler', base: '/docs/foundation/', link: 'exception-handler'},
                 {text: 'Cache', base: '/docs/foundation/', link: 'cache'},

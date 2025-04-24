@@ -35,9 +35,9 @@ Route middleware is applied only to specific routes or groups of routes. This is
 - Rate limiting certain endpoints
 - Validating input for particular routes
 
-### Controller Middleware
+### Handler Middleware
 
-Controller middleware can be applied to specific controllers or controller methods using PHP 8 attributes.
+Handler middleware can be applied to specific controllers or controller methods using PHP 8 attributes.
 
 ### Middleware Groups
 
@@ -144,7 +144,7 @@ Route middleware can be applied to individual routes:
 
 ```php
 // routes/web.php
-$router->get('/dashboard', 'DashboardController@index')
+$router->get('/users', \App\Handlers\GetUsersHandler::class)
     ->middleware(\App\Middleware\AuthMiddleware::class);
 ```
 
@@ -153,14 +153,14 @@ Or to route groups:
 ```php
 // routes/api.php
 $router->group(['middleware' => \App\Middleware\ApiAuthMiddleware::class], function($router) {
-    $router->get('/users', 'UserController@index');
-    $router->post('/users', 'UserController@store');
+    $router->get('/users', \App\Handlers\GetUsersHandler::class);
+    $router->post('/users', \App\Handlers\CreateUserHandler::class);
 });
 ```
 
 ### Controller Middleware using Attributes
 
-You can apply middleware directly to controllers or methods using attributes:
+You can apply middleware directly to handlers attributes:
 
 ```php
 <?php
@@ -171,20 +171,18 @@ use Ody\Middleware\Attributes\Middleware;
 use Ody\Middleware\Attributes\MiddlewareGroup;
 
 #[Middleware(\App\Middleware\AuthMiddleware::class)]
-class UserController
+class GetUserHandler
 {
-    #[Middleware(\App\Middleware\RoleMiddleware::class, ['requiredRole' => 'admin'])]
-    public function store(Request $request, Response $response)
+    public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // Only authenticated users with 'admin' role can access this
-        // ...
-    }
-    
-    #[MiddlewareGroup('api')]
-    public function list(Request $request, Response $response)
-    {
-        // This method uses all middleware in the 'api' group
-        // ...
+        $user = $this->userRepository->findById($request->getAttribute('id'));
+
+        if (empty($user)) {
+            return new JsonResponse(['error' => 'Users not found'], 404);
+        }
+
+        return new JsonResponse(['data' => $user], 200);
+
     }
 }
 ```
@@ -216,12 +214,12 @@ Then use them in your routes:
 ```php
 // routes/web.php
 $router->group(['middleware' => 'web'], function($router) {
-    $router->get('/', 'HomeController@index');
+    $router->get('/', SomeHandler::class);
 });
 
 // routes/api.php
 $router->group(['middleware' => 'api'], function($router) {
-    $router->get('/users', 'ApiController@users');
+    $router->get('/users', \App\Handlers\GetUsersHandler::class);
 });
 ```
 
@@ -231,7 +229,7 @@ Parameters can be passed to middleware:
 
 ```php
 // routes/api.php
-$router->post('/files', 'FileController@upload')
+$router->post('/files', FileUploadHandler::class)
     ->middleware(new \App\Middleware\ThrottleMiddleware(5, 1)); // 5 requests per minute
 ```
 
@@ -290,17 +288,3 @@ class LogResponseMiddleware implements MiddlewareInterface, TerminatingMiddlewar
     }
 }
 ```
-
-## Available Middleware
-
-ODY framework comes with several built-in middleware:
-
-| Middleware                 | Description                                             |
-|----------------------------|---------------------------------------------------------|
-| `AuthMiddleware`           | Handles authentication with configurable guards         |
-| `CorsMiddleware`           | Handles Cross-Origin Resource Sharing                   |
-| `ErrorHandlerMiddleware`   | Catches exceptions and returns formatted responses      |
-| `JsonBodyParserMiddleware` | Parses JSON request bodies                              |
-| `LoggingMiddleware`        | Logs request information with path exclusion capability |
-| `RoleMiddleware`           | Implements role-based access control                    |
-| `ThrottleMiddleware`       | Rate limits requests                                    |

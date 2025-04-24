@@ -297,10 +297,7 @@ class Application implements RequestHandlerInterface
             if ($isPsr15Handler && $handlerClass) {
                 $handlerInstance = $this->getHandlerResolver()->createHandler($handlerClass);
 
-                return $this->dispatchViaStratigility(
-                    $request,
-                    $handlerInstance
-                );
+                return $this->dispatch($request, $handlerInstance);
             }
 
             // Handle cases where the handler string was invalid
@@ -311,7 +308,14 @@ class Application implements RequestHandlerInterface
         }
     }
 
-    protected function dispatchViaStratigility(
+    /**
+     * @param ServerRequestInterface $request
+     * @param RequestHandlerInterface $finalHandler
+     * @return ResponseInterface
+     * @throws ContainerExceptionInterface
+     * @throws NotFoundExceptionInterface
+     */
+    protected function dispatch(
         ServerRequestInterface $request,
         RequestHandlerInterface $finalHandler
     ): ResponseInterface {
@@ -330,11 +334,9 @@ class Application implements RequestHandlerInterface
 
         $pipeline = new MiddlewarePipe();
 
-        $logger->debug('DispatchViaStratigility: Processing middleware stack', ['stack' => $middlewareStack]);
         foreach ($middlewareStack as $middlewareDefinition) {
             try {
                 $middlewareInstance = $middlewareResolver->resolve($middlewareDefinition);
-                $logger->debug('DispatchViaStratigility: Piping middleware', ['class' => get_class($middlewareInstance)]);
                 $pipeline->pipe($middlewareInstance);
             } catch (\Throwable $e) {
                 $logger->error('DispatchViaStratigility: Failed to resolve/pipe middleware', [
@@ -345,7 +347,6 @@ class Application implements RequestHandlerInterface
             }
         }
 
-        $logger->debug('DispatchViaStratigility: Processing request through pipeline', ['finalHandler' => get_class($finalHandler)]);
         return $pipeline->process($request, $finalHandler);
     }
 

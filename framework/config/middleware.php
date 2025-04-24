@@ -1,12 +1,11 @@
 <?php
 
-use Ody\Middleware\CorsMiddleware;
-use Ody\Middleware\ErrorHandlerMiddleware;
-use Ody\Middleware\JsonBodyParserMiddleware;
+use Ody\Foundation\Middleware\CorsMiddleware;
+use Ody\Foundation\Middleware\JsonBodyParserMiddleware;
 
 return [
     'global' => [
-        ErrorHandlerMiddleware::class,
+//        ErrorHandlerMiddleware::class,
         CorsMiddleware::class,
         JsonBodyParserMiddleware::class,
     ],

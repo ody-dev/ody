@@ -7,7 +7,7 @@
  * Variables $router, $middleware, and $container are available from the RouteLoader.
  */
 
+use App\Handlers\GetUsersHandler;
 use Ody\Foundation\Facades\Route;
 
-Route::post('/users', 'App\Controllers\UserController@createUser');
-Route::get('/users/{id}', 'App\Controllers\UserController@getUser');
+Route::get('/users', GetUsersHandler::class);

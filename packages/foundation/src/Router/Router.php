@@ -127,19 +127,13 @@ class Router
      */
     protected function addRoute(string $method, string $path, mixed $handler): Route
     {
-        // Normalize path
         $path = $this->normalizePath($path);
-
-        // Create Route object
         $route = new Route($method, $path, $handler, $this->middlewareManager);
-
-        // Store route definition
         $this->routes[] = [$method, $path, $handler];
 
         // Reset dispatcher so it will be rebuilt on next match
         $this->dispatcher = null;
 
-        // Log route registration
         $workerId = getmypid();
         $this->logger->debug("[Worker {$workerId}] Router: Registered {$method} route: {$path}");
 
@@ -189,13 +183,9 @@ class Router
                 $routeParams = $routeInfo[2];
                 $this->logger->debug("Router: Route found for {$method} {$path}");
 
-                $controllerClass = null;
                 if (is_string($handlerIdentifier)) {
-                    // Check if it's a PSR-15 Request Handler
-                    $interfaces = class_implements($handlerIdentifier); // Get interfaces
-                    if (isset($interfaces['Psr\Http\Server\RequestHandlerInterface'])) {
-                        $controllerClass = $handlerIdentifier;
-                    } else {
+                    $interfaces = class_implements($handlerIdentifier);
+                    if (!isset($interfaces['Psr\Http\Server\RequestHandlerInterface'])) {
                         $this->logger->warning("Router: Handler string '{$handlerIdentifier}' is not a valid PSR-15 handler.");
                     }
                 }
@@ -204,7 +194,6 @@ class Router
                     'status' => 'found',
                     'handler' => $handlerIdentifier,
                     'vars' => $routeParams,
-                    'controller' => $controllerClass,
                     'is_psr15' => true
                 ];
         }

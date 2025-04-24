@@ -95,7 +95,7 @@ return [
      * Controls the behavior of the framework's controller caching mechanism
      * Enabling this gives a slight performance boost.
      */
-    'controller_cache' => [
+    'handler_cache' => [
         // Whether controller caching is enabled globally
         'enabled' => true,
 

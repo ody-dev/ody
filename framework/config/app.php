@@ -76,24 +76,9 @@ return [
 //            \Ody\AMQP\Providers\AMQPServiceProvider::class,
         ]
     ],
-    'aliases' => [
-        'App' => \Ody\Foundation\Application::class,
-        'Config' => \Ody\Support\Config::class,
-        'Env' => \Ody\Support\Env::class,
-        'Router' => \Ody\Foundation\Router\Router::class,
-        'Request' => \Ody\Foundation\Http\Request::class,
-        'Response' => \Ody\Foundation\Http\Response::class,
-    ],
+
     'routes' => [
         'path' => env('ROUTES_PATH', base_path('routes')),
-    ],
-
-    'cors' => [
-        'origin' => env('CORS_ALLOW_ORIGIN', '*'),
-        'methods' => env('CORS_ALLOW_METHODS', 'GET, POST, PUT, DELETE, OPTIONS'),
-        'headers' => env('CORS_ALLOW_HEADERS', 'Content-Type, Authorization, X-Requested-With, X-API-Key'),
-        'credentials' => env('CORS_ALLOW_CREDENTIALS', false),
-        'max_age' => env('CORS_MAX_AGE', 86400), // 24 hours
     ],
 
     /**
@@ -102,7 +87,7 @@ return [
      * Controls the behavior of the framework's controller caching mechanism
      * Enabling this gives a slight performance boost.
      */
-    'controller_cache' => [
+    'handler_cache' => [
         // Whether controller caching is enabled globally
         'enabled' => true,
 

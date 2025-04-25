@@ -2,11 +2,12 @@
 
 namespace Ody\Auth\Providers;
 
+use App\Repositories\UserRepository;
 use Ody\Auth\AuthFactory;
 use Ody\Auth\AuthManager;
 use Ody\Auth\AuthProviderInterface;
 use Ody\Auth\DirectAuthProvider;
-use Ody\Auth\Middleware\AuthMiddleware;
+use Ody\Auth\Middleware\AuthenticationMiddleware;
 use Ody\Foundation\Providers\ServiceProvider;
 use Ody\Support\Config;
 
@@ -35,8 +36,7 @@ class AuthServiceProvider extends ServiceProvider
             $authType = $authConfig['provider'] ?? 'direct';
 
             if ($authType === 'direct') {
-                // Get user repository (from your Eloquent setup)
-                $userRepository = $container->make('user.repository');
+                $userRepository = $container->make(UserRepository::class);
 
                 return new DirectAuthProvider(
                     $userRepository,
@@ -63,8 +63,8 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         // Register Auth Middleware
-        $this->container->singleton(AuthMiddleware::class, function ($container) {
-            return new AuthMiddleware(
+        $this->container->singleton(AuthenticationMiddleware::class, function ($container) {
+            return new AuthenticationMiddleware(
                 $container->make(AuthManager::class)
             );
         });

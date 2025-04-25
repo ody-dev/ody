@@ -2,7 +2,7 @@
 
 namespace Ody\Auth\Handlers;
 
-use Ody\Auth\AuthManager;
+use Ody\Auth\Authentication;
 use Ody\Foundation\Http\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -10,10 +10,11 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class LogoutHandler implements RequestHandlerInterface
 {
-    public function __construct(
-        protected AuthManager $authManager
-    )
+    private $authService;
+
+    public function __construct(Authentication $authService)
     {
+        $this->authService = $authService;
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -21,7 +22,7 @@ class LogoutHandler implements RequestHandlerInterface
         $authHeader = $request->getHeaderLine('Authorization');
         $token = str_replace('Bearer ', '', $authHeader);
 
-        $this->authManager->logout($token);
+        $this->authService->revokeToken($token);
 
         return new JsonResponse([
             'message' => 'Logged out successfully'

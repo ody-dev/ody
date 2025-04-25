@@ -2,7 +2,7 @@
 
 namespace Ody\Auth\Handlers;
 
-use Ody\Auth\AuthManager;
+use Ody\Auth\Authentication;
 use Ody\Foundation\Http\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -10,10 +10,11 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class LoginHandler implements RequestHandlerInterface
 {
-    public function __construct(
-        protected AuthManager $authManager
-    )
+    private $authService;
+
+    public function __construct(Authentication $authService)
     {
+        $this->authService = $authService;
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -26,7 +27,7 @@ class LoginHandler implements RequestHandlerInterface
             ], 422);
         }
 
-        $result = $this->authManager->login($data['email'], $data['password']);
+        $result = $this->authService->login($data['email'], $data['password']);
 
         if (!$result) {
             return new JsonResponse([

@@ -2,70 +2,67 @@
 
 namespace Ody\Auth\Providers;
 
-use App\Repositories\UserRepository;
-use Ody\Auth\AuthFactory;
-use Ody\Auth\AuthManager;
-use Ody\Auth\AuthProviderInterface;
-use Ody\Auth\DirectAuthProvider;
+use Ody\Auth\AdapterInterface;
+use Ody\Auth\Authentication;
+use Ody\Auth\AuthenticationInterface;
+use Ody\Auth\JwtAdapter;
 use Ody\Auth\Middleware\AuthenticationMiddleware;
 use Ody\Foundation\Providers\ServiceProvider;
 use Ody\Support\Config;
+use Psr\Http\Message\ResponseFactoryInterface;
 
 class AuthServiceProvider extends ServiceProvider
 {
     protected array $singletons = [
-        AuthManager::class => null,
-        AuthProviderInterface::class => null,
+        AuthenticationInterface::class => null,
+        AdapterInterface::class => null,
     ];
 
     protected array $aliases = [
-        'auth' => AuthManager::class,
+        'auth' => AuthenticationInterface::class,
     ];
 
     public function register(): void
     {
-        // Register AuthFactory
-        $this->container->singleton(AuthFactory::class);
-
-        // Register the auth provider (direct or remote based on config)
-        $this->container->singleton(AuthProviderInterface::class, function ($container) {
+        // Register the authentication adapter (JWT implementation)
+        $this->container->singleton(AdapterInterface::class, function ($container) {
             $config = $container->make(Config::class);
             $authConfig = $config->get('auth.driver', []);
 
-            // Default to direct provider if not specified
-            $authType = $authConfig['provider'] ?? 'direct';
+            // Default to JWT adapter
+            $jwtKey = $authConfig['jwt_key'] ?? env('JWT_SECRET_KEY', 'default_secret_key');
 
-            if ($authType === 'direct') {
-                $userRepository = $container->make(UserRepository::class);
+            // Revoked token callback - can use your existing token revocation logic
+            $tokenRevokedCallback = function ($token) use ($container) {
+                // You could implement this based on your existing token revocation mechanism
+                // For example, using a TokenRepository to check if a token is revoked
+                if ($container->has('token.repository')) {
+                    return $container->make('token.repository')->isRevoked($token);
+                }
+                return false;
+            };
 
-                return new DirectAuthProvider(
-                    $userRepository,
-                    $authConfig['jwt_key'] ?? env('JWT_SECRET_KEY', 'default_secret_key'),
-                    $authConfig['token_expiry'] ?? 3600,
-                    $authConfig['refresh_token_expiry'] ?? 86400 * 30
-                );
-            } else {
-                // Setup for remote auth provider
-                return AuthFactory::createRemoteProvider(
-                    $authConfig['service_host'] ?? env('AUTH_SERVICE_HOST', 'localhost'),
-                    $authConfig['service_port'] ?? env('AUTH_SERVICE_PORT', 9501),
-                    $authConfig['service_id'] ?? env('SERVICE_ID', 'app'),
-                    $authConfig['service_secret'] ?? env('SERVICE_SECRET', 'secret')
-                );
-            }
+            return new JwtAdapter(
+                $jwtKey,
+                'Bearer',
+                'Authorization',
+                'HS256',
+                $tokenRevokedCallback
+            );
         });
 
-        // Register the AuthManager
-        $this->container->singleton(AuthManager::class, function ($container) {
-            return new AuthManager(
-                $container->make(AuthProviderInterface::class)
+        // Register the Authentication service
+        $this->container->singleton(AuthenticationInterface::class, function ($container) {
+            return new Authentication(
+                $container->make(AdapterInterface::class),
+                $container->make(ResponseFactoryInterface::class)
             );
         });
 
         // Register Auth Middleware
         $this->container->singleton(AuthenticationMiddleware::class, function ($container) {
             return new AuthenticationMiddleware(
-                $container->make(AuthManager::class)
+                $container->make(AuthenticationInterface::class)
             );
         });
     }

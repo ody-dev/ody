@@ -3,6 +3,8 @@
 namespace Ody\Auth;
 
 use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use Random\RandomException;
 
 /**
  * Direct Authentication Provider
@@ -11,9 +13,9 @@ use Firebase\JWT\JWT;
 class DirectAuthProvider implements AuthProviderInterface
 {
     protected $userRepository;
-    protected $jwtKey;
-    protected $tokenExpiry;
-    protected $refreshTokenExpiry;
+    protected string $jwtKey;
+    protected int $tokenExpiry;
+    protected int $refreshTokenExpiry;
 
     public function __construct($userRepository, string $jwtKey, int $tokenExpiry = 3600, int $refreshTokenExpiry = 2592000)
     {
@@ -39,13 +41,19 @@ class DirectAuthProvider implements AuthProviderInterface
         return $user;
     }
 
-    public function validateToken(string $token)
+    /**
+     * Validate a JWT token
+     *
+     * @param string $token JWT token
+     * @return false|array Decoded token data or false on failure
+     */
+    public function validateToken(string $token): false|array
     {
         try {
             // Use Firebase JWT library
             $decoded = JWT::decode(
                 $token,
-                new \Firebase\JWT\Key($this->jwtKey, 'HS256')
+                new Key($this->jwtKey, 'HS256')
             );
 
             // Check if token is in blacklist (could use Redis/DB)
@@ -59,18 +67,24 @@ class DirectAuthProvider implements AuthProviderInterface
         }
     }
 
-    protected function isTokenRevoked(string $token)
+    protected function isTokenRevoked(string $token): false
     {
         // Check if token is revoked
         // In a real implementation, you would check against Redis or a database
         return false;
     }
 
-    public function refreshToken(string $refreshToken)
+    /**
+     * Refresh a JWT token using a refresh token
+     *
+     * @param string $refreshToken Refresh token
+     * @return false|array New tokens or false on failure
+     */
+    public function refreshToken(string $refreshToken): false|array
     {
         $decoded = JWT::decode(
             $refreshToken,
-            new \Firebase\JWT\Key($this->jwtKey, 'HS256')
+            new Key($this->jwtKey, 'HS256')
         );
 
         // Verify this is a refresh token and not expired
@@ -87,11 +101,24 @@ class DirectAuthProvider implements AuthProviderInterface
         return $this->generateTokens($user);
     }
 
-    public function getUser($id)
+    /**
+     * Get user by ID
+     *
+     * @param int $id User ID
+     * @return array|false User data or false if not found
+     */
+    public function getUser($id): false|array
     {
         return $this->userRepository->findById($id);
     }
 
+    /**
+     * Generate JWT and refresh token for a user
+     *
+     * @param array $user User data
+     * @return array Tokens
+     * @throws RandomException
+     */
     public function generateTokens(array $user): array
     {
         $now = time();

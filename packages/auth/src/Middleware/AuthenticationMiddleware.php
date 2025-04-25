@@ -10,6 +10,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class AuthenticationMiddleware implements MiddlewareInterface
 {
+    public const string IDENTITY_ATTRIBUTE = 'identity';
+
     private AuthenticationInterface $authentication;
 
     public function __construct(AuthenticationInterface $authentication)
@@ -26,6 +28,6 @@ class AuthenticationMiddleware implements MiddlewareInterface
         }
 
         // Add identity to request attributes and continue
-        return $handler->handle($request->withAttribute(AuthenticationInterface::class, $identity));
+        return $handler->handle($request->withAttribute(self::IDENTITY_ATTRIBUTE, $identity));
     }
 }
